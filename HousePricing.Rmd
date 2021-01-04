@@ -14,6 +14,8 @@ if(!require(lubridate)) install.packages("lubridate")
 if(!require(devtools)) install.packages("devtools")
 if(!require(gridExtra)) install.packages("gridExtra")
 if(!require(kableExtra)) install.packages("kableExtra")
+if(!require(ggraph)) install.packages("ggraph")
+if(!require(igraph)) install.packages("igraph")
 ```
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, include=FALSE}
@@ -25,7 +27,7 @@ library(devtools)
 library(gridExtra)
 library(kableExtra) 
 library(plyr)
-devtools::install_github('yihui/tinytex')
+library(Matrix)
 options(tinytex.verbose = TRUE)
 
 #updating default size text of ggplots
@@ -36,6 +38,20 @@ knitr::purl("HousePricing.Rmd")
 
 # Suppress summarise info
 options(dplyr.summarise.inform = FALSE)
+
+
+
+#mode function get most frequent value.
+mode<- function(x){
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]}
+
+
+
+#Label_quality_Conditions encoder.
+Quac_Cond_decoder <- function(df,col){
+evaluation_quality <- data.table("quality" = c("Po","Fa","TA","Gd","Ex"), "score"=c(1,2,3,4,5))
+mapvalues(as.vector(df[,col]),evaluation_quality$quality,evaluation_quality$score)}
 ```
 # Introduccion 
 
@@ -43,7 +59,7 @@ options(dplyr.summarise.inform = FALSE)
 This project consists of determining the value of a house according to its location, property characteristics and payment methods using the data set from kaggle House Prices - Advanced Regression Techniques https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data (kaggle competitions download -c house-prices-advanced-regression-techniques).
 
 
-# Importing Data & EDA
+# Importing Data.
 
 
 Files:
@@ -66,6 +82,14 @@ test_set <-read_csv('test.csv')
 train_set<- read_csv('train.csv')
 
 
+#Join datasets, For this project we going to join train and set data for the cleansing and EDA, later we going to split again by SalesPrices not null as train set and test set is null.
+df<- bind_rows(train_set,test_set)
+```
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+
 #Train SET INFO
 colnames_trian_set<-colnames(train_set)
 memory_usage_train_set<-format(object.size(train_set),units="MB")
@@ -76,6 +100,10 @@ colnames_test_set<-colnames(test_set)
 memory_usage_test_set<-format(object.size(test_set),units="MB")
 dim_test_set <- dim(test_set)
 ```
+
+
+# EDA
+
 train_set:
 
     * Dimensions: `r toString(dim_train_set)`
@@ -86,18 +114,14 @@ test_set:
     * Dimensions: `r toString(dim_test_set)`
     * Memory Usage: `r toString(memory_usage_test_set)`
     
-For this project we going to join train and set data for the cleansing and EDA, later we going to split again by SalesPrices not null as train set and test set is null.
 
 ```{r, echo=FALSE,  message=FALSE, warning=FALSE}
 
-
 #searching for the additional column in the train set
 colname_diff <-setdiff(colnames_trian_set,colnames_test_set)
-#Join datasets
-df<- bind_rows(train_set,test_set)
 
 #Selecting character columns
-categorical_columns<-colnames(df %>% select(which(sapply(.,is.character))))
+categorical_columns<- colnames(df %>% select(which(sapply(.,is.character))))
 #Number of character columns
 n_cat_cols <- length(categorical_columns)
 #Display character columns in table
@@ -130,43 +154,21 @@ Total numeric columns: `r n_numeric_columns`
 `r numerical_columns_tb`  
   
 Im going to handle MSSubClass as categorical data although it is shown as numeric column, is actually a categorical data, the numbers is the columns are the type of dwelling involved in the sale, im removing from numeric columns and append as categorical.  
-
-MSSubClass:  
-
-        20	1-STORY 1946 & NEWER ALL STYLES
-        30	1-STORY 1945 & OLDER
-        40	1-STORY W/FINISHED ATTIC ALL AGES
-        45	1-1/2 STORY - UNFINISHED ALL AGES
-        50	1-1/2 STORY FINISHED ALL AGES
-        60	2-STORY 1946 & NEWER
-        70	2-STORY 1945 & OLDER
-        75	2-1/2 STORY ALL AGES
-        80	SPLIT OR MULTI-LEVEL
-        85	SPLIT FOYER
-        90	DUPLEX - ALL STYLES AND AGES
-       120	1-STORY PUD (Planned Unit Development) - 1946 & NEWER
-       150	1-1/2 STORY PUD - ALL AGES
-       160	2-STORY PUD - 1946 & NEWER
-       180	PUD - MULTILEVEL - INCL SPLIT LEV/FOYER
-       190	2 FAMILY CONVERSION - ALL STYLES AND AGES
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #Remove MSSubClass from numeric columns
 numerical_columns <- numerical_columns[!(numerical_columns %in% c("MSSubClass"))]
 #Append MSSubClass to categorical columns
 categorical_columns<-append(categorical_columns,"MSSubClass")
 ```
-
-
 ## Missing Values
-For this analysis we going to select just the columns that have missing values, **if they not in plot or table its because they not have missing values**.  
-  
-  
+For this analysis we going to select just the columns that have missing values, **if they not in plot or table its because they not have missing values**.
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #getting percentage of null values in each column
+missing_values<- function(df){
 nan_columns <- sort(colMeans(is.na(df)))
-nan_columns <- nan_columns[nan_columns>0]
 nan_summary<- data.table("name"= names(nan_columns),"prc_na"=nan_columns) %>% arrange(desc(prc_na)) %>% mutate(type= ifelse(name %in% categorical_columns,"categorical","numerical"))
-
+  nan_summary}
+nan_summary<- missing_values(df)  %>% filter(prc_na>0)
 na_categorical <- nan_summary %>% filter(type=="categorical") %>% select(name,prc_na) %>%
   kable() %>%
   kable_styling(position = "left", full_width = FALSE) %>%
@@ -185,677 +187,168 @@ na_numerical <- nan_summary %>% filter(type=="numerical") %>% select(name,prc_na
   kable_material(c("striped"))%>% 
   kable_minimal()%>%
   add_header_above(c("Missing Numerical Columns"=2))
-        
-        
+
+
 ```
 **Description of columns with Missing Values**:
 
   `r na_categorical` 
 
-
-    MiscFeature: Miscellaneous feature not covered in other categories
-    		
-           Elev	Elevator
-           Gar2	2nd Garage (if not described in garage section)
-           Othr	Other
-           Shed	Shed (over 100 SF)
-           TenC	Tennis Court
-           NA	None
-           
-    Alley: Type of alley access to property
-    
-           Grvl	Gravel
-           Pave	Paved
-           NA 	No alley access
-           
-    Fence: Fence quality
-    		
-           GdPrv	Good Privacy
-           MnPrv	Minimum Privacy
-           GdWo	Good Wood
-           MnWw	Minimum Wood/Wire
-           NA	No Fence
-    
-    FireplaceQu: Fireplace quality
-
-       Ex	Excellent - Exceptional Masonry Fireplace
-       Gd	Good - Masonry Fireplace in main level
-       TA	Average - Prefabricated Fireplace in main living area or Masonry Fireplace in basement
-       Fa	Fair - Prefabricated Fireplace in basement
-       Po	Poor - Ben Franklin Stove
-       NA	No Fireplace
-           
-    GarageFinish: Interior finish of the garage
-    
-           Fin	Finished
-           RFn	Rough Finished	
-           Unf	Unfinished
-           NA	No Garage
-           
-    GarageType: Garage location
-    		
-           2Types	More than one type of garage
-           Attchd	Attached to home
-           Basment	Basement Garage
-           BuiltIn	Built-In (Garage part of house - typically has room above garage)
-           CarPort	Car Port
-           Detchd	Detached from home
-           NA	No Garage
-           
-    BsmtExposure: Refers to walkout or garden level walls
-    
-           Gd	Good Exposure
-           Av	Average Exposure (split levels or foyers typically score average or above)	
-           Mn	Mimimum Exposure
-           No	No Exposure
-           NA	No Basement
-    	
-    BsmtFinType1: Rating of basement finished area
-    
-           GLQ	Good Living Quarters
-           ALQ	Average Living Quarters
-           BLQ	Below Average Living Quarters	
-           Rec	Average Rec Room
-           LwQ	Low Quality
-           Unf	Unfinshed
-           NA	No Basement
-    		
-    BsmtFinType2: Rating of basement finished area (if multiple types)
-    
-           GLQ	Good Living Quarters
-           ALQ	Average Living Quarters
-           BLQ	Below Average Living Quarters	
-           Rec	Average Rec Room
-           LwQ	Low Quality
-           Unf	Unfinshed
-           NA	No Basement
-           
-    MasVnrType: Masonry veneer type
-
-       BrkCmn	Brick Common
-       BrkFace	Brick Face
-       CBlock	Cinder Block
-       None	None
-       Stone	Stone
-       
-    MSZoning: Identifies the general zoning classification of the sale.
-		
-       A	Agriculture
-       C	Commercial
-       FV	Floating Village Residential
-       I	Industrial
-       RH	Residential High Density
-       RL	Residential Low Density
-       RP	Residential Low Density Park 
-       RM	Residential Medium Density
-       
-    Utilities: Type of utilities available
-		
-       AllPub	All public Utilities (E,G,W,& S)	
-       NoSewr	Electricity, Gas, and Water (Septic Tank)
-       NoSeWa	Electricity and Gas Only
-       ELO	Electricity only
-       
-    Functional: Home functionality (Assume typical unless deductions are warranted)
-
-       Typ	Typical Functionality
-       Min1	Minor Deductions 1
-       Min2	Minor Deductions 2
-       Mod	Moderate Deductions
-       Maj1	Major Deductions 1
-       Maj2	Major Deductions 2
-       Sev	Severely Damaged
-       Sal	Salvage only
-		
-       
-	
-    Electrical: Electrical system
-
-       SBrkr	Standard Circuit Breakers & Romex
-       FuseA	Fuse Box over 60 AMP and all Romex wiring (Average)	
-       FuseF	60 AMP Fuse Box and mostly Romex wiring (Fair)
-       FuseP	60 AMP Fuse Box and mostly knob & tube wiring (poor)
-       Mix	Mixed
-       
-       
   `r na_numerical`
-    
-    LotFrontage: Linear feet of street connected to property
-    GarageYrBlt: Year garage was built
-    MasVnrArea: Masonry veneer area in square feet
 
+By looking in the data_description file, we can determine that we have columns that show us measurements, condition and qualities of additional features of the houses, They are defined with NA when they do not have one of them. To determine if they are really null values, we must compare multiple columns, example if we have NA PoolQC and PoolArea equal to 0 is the NA is not a Missing value, because the house doesnt have a pool, if PoolQC is NA but the PoolArea is greater than 0, we have a missing value.
+</br> 
+
+###   Identify associated columns 
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df <-df[, order(names(df))]
+#By looking in the description file, i bring columns that allow NA.
+add_features <- c("Alley"
+,"MasVnr"
+,"Bsmt"
+,"Fireplace"
+,"Pool"
+,"Heating"
+,"Fence"
+,"Misc"
+,"Kitchen"
+,"Exterior"
+,"Garage")
+
+
+#Create 3 empty values for save results
+name_features<-NULL
+dim_features <- NULL
+dtype <-NULL
+#set position in our lists
+n <-0
+#loop through our detected features
+for ( f in add_features){
+  #selecting columns that contains feature in name.
+  f_df = df[,grepl(f, names(df))]
+  num_cols =length(names(f_df))
+  #check if there is true missing data.
+  
+   for(add_f in names(f_df)){
+    n = n+1
+    if(add_f %in% categorical_columns){
+      dtype[n] = "categorical"}
+    else{dtype[n]="numeric"}
+   
+    name_features[n] = f 
+    dim_features[n]= add_f
+   }
+  
+    
+}
+
+#I created a temporal data table to display features and columns.  
+temp_df <- data.table(name_features,dim_features,dtype)
+temp_df %>% kable()%>% pack_rows(index = table(fct_inorder(temp_df$name_features) )) %>% 
+  kable_styling() %>%
+  add_header_above(c("Related Features"=3))
+```
+### Cleaning set of Quality|Condition|Type where Area or SqrtFeet =0 (Max set of 2 columns)
+This step we going to select most obvious **not** null values, features that have 1 or two columns to replace null values.
+Where we have for example null in Quality or condition Column and 0 in Area or Square feet, we going to replace null values to "None Feature Value".
+    
+    - MasVnr
+    - Pool
+    - Fireplace
+    - Fence
+    - Alley
+    
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+rm(temp_df)
+df<- df %>% mutate(
+          PoolQC = ifelse(is.na(PoolArea)|PoolArea==0,"No Pool",PoolQC),
+          FireplaceQu = ifelse(is.na(Fireplaces)|Fireplaces==0,"No Fireplace",FireplaceQu),
+          Alley = ifelse(is.na(Alley),"None Alley",Alley),
+          Fence = ifelse(is.na(Fence),"None Fence",Fence),
+          MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType)
+         )
+```
+</br>
+After replacing, as result we still having null values, for those features that are keeping null values we going to take another approach for each one.
+`r missing_values(df[grepl("MasVnr|Pool|Fire|Fence|Alley",names(df))]) %>% kable()%>% kable_styling() `
+
+### Masonry veneer
+
+Columns:
+
+    1. MasVnrType.
+    2. MasVnrArea.
+</br>    
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+MasVnr_temp <- df  %>% filter(MasVnrType!="None MasVnr")
+
+grid.arrange(
+      grid.arrange(  MasVnr_temp %>%  ggplot() +
+                    geom_bar(aes(y=MasVnrType))
+                   ,MasVnr_temp %>% 
+                    ggplot(aes(x=MasVnrType,y=MasVnrArea)) +
+                    geom_boxplot() +
+                    stat_summary(fun=mean,geom="point")+
+                    coord_flip()
+                    ,ncol = 2, nrow = 1),
+       MasVnr_temp %>% group_by(YearBuilt,MasVnrType) %>% dplyr::summarise(count_=n()) %>%
+         ggplot(aes(x=YearBuilt,y=count_,col=MasVnrType)) + 
+        geom_line()+
+        theme(legend.justification = c(0,1),
+              legend.position = c(0,1),
+        axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+        scale_x_continuous(breaks=seq(min(MasVnr_temp$YearBuilt),max(MasVnr_temp$YearBuilt),5)),
+      heights=c(1/3, 2/3)
+)
+
+```
+</br>
+This plot show us between 1950 and 2005 BrkFace was the predominant type of MasVnr and after 2005 was Stone, we going to get the mode in every yearn and fill Na values with mode by year and look how many null values we get.
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+mode_masvnr <- MasVnr_temp   %>% group_by(YearBuilt) %>% dplyr::summarise(t_mode =mode(MasVnrType))
+df<- df %>% left_join(mode_masvnr,  by="YearBuilt") %>%
+  mutate(MasVnrType = ifelse(is.na(MasVnrType),t_mode,MasVnrType))%>%
+  select(-t_mode) %>%
+  mutate(MasVnrArea=ifelse(MasVnrType=="None MasVnr",0,MasVnrArea))
+rm(MasVnr_temp)
+missing_values(df[grepl("MasVnr",names(df))])  %>% kable()%>%
+  kable_styling() %>%
+  add_header_above(c("Mansory Veneer"=3))
+
+```
 ```{r}
 
-evaluation_quality <- data.table("quality" = c("NA","Po","Fa","TA","Gd","Ex"), "score"=c(-999999,0,1,2,3,4))
-quality_columns<-names(train_set[,(grepl("Qu|Qua|QC|Cond",names(train_set)))&names(train_set) %in% categorical_columns])
-for(col in quality_columns){
-  train_set[,col]<- mapvalues(as.vector(train_set[,col]),evaluation_quality$quality,evaluation_quality$score)
-  train_set[,col][is.na(train_set[col])]<--9999999
-}
 ```
-# ANEXO
-    
-    ## DATASET DETAILS
-    MSSubClass: Identifies the type of dwelling involved in the sale.	
-    
-            20	1-STORY 1946 & NEWER ALL STYLES
-            30	1-STORY 1945 & OLDER
-            40	1-STORY W/FINISHED ATTIC ALL AGES
-            45	1-1/2 STORY - UNFINISHED ALL AGES
-            50	1-1/2 STORY FINISHED ALL AGES
-            60	2-STORY 1946 & NEWER
-            70	2-STORY 1945 & OLDER
-            75	2-1/2 STORY ALL AGES
-            80	SPLIT OR MULTI-LEVEL
-            85	SPLIT FOYER
-            90	DUPLEX - ALL STYLES AND AGES
-           120	1-STORY PUD (Planned Unit Development) - 1946 & NEWER
-           150	1-1/2 STORY PUD - ALL AGES
-           160	2-STORY PUD - 1946 & NEWER
-           180	PUD - MULTILEVEL - INCL SPLIT LEV/FOYER
-           190	2 FAMILY CONVERSION - ALL STYLES AND AGES
-    
-    MSZoning: Identifies the general zoning classification of the sale.
-    		
-           A	Agriculture
-           C	Commercial
-           FV	Floating Village Residential
-           I	Industrial
-           RH	Residential High Density
-           RL	Residential Low Density
-           RP	Residential Low Density Park 
-           RM	Residential Medium Density
-    	
-    LotFrontage: Linear feet of street connected to property
-    
-    LotArea: Lot size in square feet
-    
-    Street: Type of road access to property
-    
-           Grvl	Gravel	
-           Pave	Paved
-           	
-    Alley: Type of alley access to property
-    
-           Grvl	Gravel
-           Pave	Paved
-           NA 	No alley access
-    		
-    LotShape: General shape of property
-    
-           Reg	Regular	
-           IR1	Slightly irregular
-           IR2	Moderately Irregular
-           IR3	Irregular
-           
-    LandContour: Flatness of the property
-    
-           Lvl	Near Flat/Level	
-           Bnk	Banked - Quick and significant rise from street grade to building
-           HLS	Hillside - Significant slope from side to side
-           Low	Depression
-    		
-    Utilities: Type of utilities available
-    		
-           AllPub	All public Utilities (E,G,W,& S)	
-           NoSewr	Electricity, Gas, and Water (Septic Tank)
-           NoSeWa	Electricity and Gas Only
-           ELO	Electricity only	
-    	
-    LotConfig: Lot configuration
-    
-           Inside	Inside lot
-           Corner	Corner lot
-           CulDSac	Cul-de-sac
-           FR2	Frontage on 2 sides of property
-           FR3	Frontage on 3 sides of property
-    	
-    LandSlope: Slope of property
-    		
-           Gtl	Gentle slope
-           Mod	Moderate Slope	
-           Sev	Severe Slope
-    	
-    Neighborhood: Physical locations within Ames city limits
-    
-           Blmngtn	Bloomington Heights
-           Blueste	Bluestem
-           BrDale	Briardale
-           BrkSide	Brookside
-           ClearCr	Clear Creek
-           CollgCr	College Creek
-           Crawfor	Crawford
-           Edwards	Edwards
-           Gilbert	Gilbert
-           IDOTRR	Iowa DOT and Rail Road
-           MeadowV	Meadow Village
-           Mitchel	Mitchell
-           Names	North Ames
-           NoRidge	Northridge
-           NPkVill	Northpark Villa
-           NridgHt	Northridge Heights
-           NWAmes	Northwest Ames
-           OldTown	Old Town
-           SWISU	South & West of Iowa State University
-           Sawyer	Sawyer
-           SawyerW	Sawyer West
-           Somerst	Somerset
-           StoneBr	Stone Brook
-           Timber	Timberland
-           Veenker	Veenker
-    			
-    Condition1: Proximity to various conditions
-    	
-           Artery	Adjacent to arterial street
-           Feedr	Adjacent to feeder street	
-           Norm	Normal	
-           RRNn	Within 200' of North-South Railroad
-           RRAn	Adjacent to North-South Railroad
-           PosN	Near positive off-site feature--park, greenbelt, etc.
-           PosA	Adjacent to postive off-site feature
-           RRNe	Within 200' of East-West Railroad
-           RRAe	Adjacent to East-West Railroad
-    	
-    Condition2: Proximity to various conditions (if more than one is present)
-    		
-           Artery	Adjacent to arterial street
-           Feedr	Adjacent to feeder street	
-           Norm	Normal	
-           RRNn	Within 200' of North-South Railroad
-           RRAn	Adjacent to North-South Railroad
-           PosN	Near positive off-site feature--park, greenbelt, etc.
-           PosA	Adjacent to postive off-site feature
-           RRNe	Within 200' of East-West Railroad
-           RRAe	Adjacent to East-West Railroad
-    	
-    BldgType: Type of dwelling
-    		
-           1Fam	Single-family Detached	
-           2FmCon	Two-family Conversion; originally built as one-family dwelling
-           Duplx	Duplex
-           TwnhsE	Townhouse End Unit
-           TwnhsI	Townhouse Inside Unit
-    	
-    HouseStyle: Style of dwelling
-    	
-           1Story	One story
-           1.5Fin	One and one-half story: 2nd level finished
-           1.5Unf	One and one-half story: 2nd level unfinished
-           2Story	Two story
-           2.5Fin	Two and one-half story: 2nd level finished
-           2.5Unf	Two and one-half story: 2nd level unfinished
-           SFoyer	Split Foyer
-           SLvl	Split Level
-    	
-    OverallQual: Rates the overall material and finish of the house
-    
-           10	Very Excellent
-           9	Excellent
-           8	Very Good
-           7	Good
-           6	Above Average
-           5	Average
-           4	Below Average
-           3	Fair
-           2	Poor
-           1	Very Poor
-    	
-    OverallCond: Rates the overall condition of the house
-    
-           10	Very Excellent
-           9	Excellent
-           8	Very Good
-           7	Good
-           6	Above Average	
-           5	Average
-           4	Below Average	
-           3	Fair
-           2	Poor
-           1	Very Poor
-    		
-    YearBuilt: Original construction date
-    
-    YearRemodAdd: Remodel date (same as construction date if no remodeling or additions)
-    
-    RoofStyle: Type of roof
-    
-           Flat	Flat
-           Gable	Gable
-           Gambrel	Gabrel (Barn)
-           Hip	Hip
-           Mansard	Mansard
-           Shed	Shed
-    		
-    RoofMatl: Roof material
-    
-           ClyTile	Clay or Tile
-           CompShg	Standard (Composite) Shingle
-           Membran	Membrane
-           Metal	Metal
-           Roll	Roll
-           Tar&Grv	Gravel & Tar
-           WdShake	Wood Shakes
-           WdShngl	Wood Shingles
-    		
-    Exterior1st: Exterior covering on house
-    
-           AsbShng	Asbestos Shingles
-           AsphShn	Asphalt Shingles
-           BrkComm	Brick Common
-           BrkFace	Brick Face
-           CBlock	Cinder Block
-           CemntBd	Cement Board
-           HdBoard	Hard Board
-           ImStucc	Imitation Stucco
-           MetalSd	Metal Siding
-           Other	Other
-           Plywood	Plywood
-           PreCast	PreCast	
-           Stone	Stone
-           Stucco	Stucco
-           VinylSd	Vinyl Siding
-           Wd Sdng	Wood Siding
-           WdShing	Wood Shingles
-    	
-    Exterior2nd: Exterior covering on house (if more than one material)
-    
-           AsbShng	Asbestos Shingles
-           AsphShn	Asphalt Shingles
-           BrkComm	Brick Common
-           BrkFace	Brick Face
-           CBlock	Cinder Block
-           CemntBd	Cement Board
-           HdBoard	Hard Board
-           ImStucc	Imitation Stucco
-           MetalSd	Metal Siding
-           Other	Other
-           Plywood	Plywood
-           PreCast	PreCast
-           Stone	Stone
-           Stucco	Stucco
-           VinylSd	Vinyl Siding
-           Wd Sdng	Wood Siding
-           WdShing	Wood Shingles
-    	
-    MasVnrType: Masonry veneer type
-    
-           BrkCmn	Brick Common
-           BrkFace	Brick Face
-           CBlock	Cinder Block
-           None	None
-           Stone	Stone
-    	
-    MasVnrArea: Masonry veneer area in square feet
-    
-    ExterQual: Evaluates the quality of the material on the exterior 
-    		
-           Ex	Excellent
-           Gd	Good
-           TA	Average/Typical
-           Fa	Fair
-           Po	Poor
-    		
-    ExterCond: Evaluates the present condition of the material on the exterior
-    		
-           Ex	Excellent
-           Gd	Good
-           TA	Average/Typical
-           Fa	Fair
-           Po	Poor
-    		
-    Foundation: Type of foundation
-    		
-           BrkTil	Brick & Tile
-           CBlock	Cinder Block
-           PConc	Poured Contrete	
-           Slab	Slab
-           Stone	Stone
-           Wood	Wood
-    		
-    BsmtQual: Evaluates the height of the basement
-    
-           Ex	Excellent (100+ inches)	
-           Gd	Good (90-99 inches)
-           TA	Typical (80-89 inches)
-           Fa	Fair (70-79 inches)
-           Po	Poor (<70 inches
-           NA	No Basement
-    		
-    BsmtCond: Evaluates the general condition of the basement
-    
-           Ex	Excellent
-           Gd	Good
-           TA	Typical - slight dampness allowed
-           Fa	Fair - dampness or some cracking or settling
-           Po	Poor - Severe cracking, settling, or wetness
-           NA	No Basement
-    	
-    BsmtExposure: Refers to walkout or garden level walls
-    
-           Gd	Good Exposure
-           Av	Average Exposure (split levels or foyers typically score average or above)	
-           Mn	Mimimum Exposure
-           No	No Exposure
-           NA	No Basement
-    	
-    BsmtFinType1: Rating of basement finished area
-    
-           GLQ	Good Living Quarters
-           ALQ	Average Living Quarters
-           BLQ	Below Average Living Quarters	
-           Rec	Average Rec Room
-           LwQ	Low Quality
-           Unf	Unfinshed
-           NA	No Basement
-    		
-    BsmtFinSF1: Type 1 finished square feet
-    
-    BsmtFinType2: Rating of basement finished area (if multiple types)
-    
-           GLQ	Good Living Quarters
-           ALQ	Average Living Quarters
-           BLQ	Below Average Living Quarters	
-           Rec	Average Rec Room
-           LwQ	Low Quality
-           Unf	Unfinshed
-           NA	No Basement
-    
-    BsmtFinSF2: Type 2 finished square feet
-    
-    BsmtUnfSF: Unfinished square feet of basement area
-    
-    TotalBsmtSF: Total square feet of basement area
-    
-    Heating: Type of heating
-    		
-           Floor	Floor Furnace
-           GasA	Gas forced warm air furnace
-           GasW	Gas hot water or steam heat
-           Grav	Gravity furnace	
-           OthW	Hot water or steam heat other than gas
-           Wall	Wall furnace
-    		
-    HeatingQC: Heating quality and condition
-    
-           Ex	Excellent
-           Gd	Good
-           TA	Average/Typical
-           Fa	Fair
-           Po	Poor
-    		
-    CentralAir: Central air conditioning
-    
-           N	No
-           Y	Yes
-    		
-    Electrical: Electrical system
-    
-           SBrkr	Standard Circuit Breakers & Romex
-           FuseA	Fuse Box over 60 AMP and all Romex wiring (Average)	
-           FuseF	60 AMP Fuse Box and mostly Romex wiring (Fair)
-           FuseP	60 AMP Fuse Box and mostly knob & tube wiring (poor)
-           Mix	Mixed
-    		
-    1stFlrSF: First Floor square feet
-     
-    2ndFlrSF: Second floor square feet
-    
-    LowQualFinSF: Low quality finished square feet (all floors)
-    
-    GrLivArea: Above grade (ground) living area square feet
-    
-    BsmtFullBath: Basement full bathrooms
-    
-    BsmtHalfBath: Basement half bathrooms
-    
-    FullBath: Full bathrooms above grade
-    
-    HalfBath: Half baths above grade
-    
-    Bedroom: Bedrooms above grade (does NOT include basement bedrooms)
-    
-    Kitchen: Kitchens above grade
-    
-    KitchenQual: Kitchen quality
-    
-           Ex	Excellent
-           Gd	Good
-           TA	Typical/Average
-           Fa	Fair
-           Po	Poor
-           	
-    TotRmsAbvGrd: Total rooms above grade (does not include bathrooms)
-    
-    Functional: Home functionality (Assume typical unless deductions are warranted)
-    
-           Typ	Typical Functionality
-           Min1	Minor Deductions 1
-           Min2	Minor Deductions 2
-           Mod	Moderate Deductions
-           Maj1	Major Deductions 1
-           Maj2	Major Deductions 2
-           Sev	Severely Damaged
-           Sal	Salvage only
-    		
-    Fireplaces: Number of fireplaces
-    
-    FireplaceQu: Fireplace quality
-    
-           Ex	Excellent - Exceptional Masonry Fireplace
-           Gd	Good - Masonry Fireplace in main level
-           TA	Average - Prefabricated Fireplace in main living area or Masonry Fireplace in basement
-           Fa	Fair - Prefabricated Fireplace in basement
-           Po	Poor - Ben Franklin Stove
-           NA	No Fireplace
-    		
-    GarageType: Garage location
-    		
-           2Types	More than one type of garage
-           Attchd	Attached to home
-           Basment	Basement Garage
-           BuiltIn	Built-In (Garage part of house - typically has room above garage)
-           CarPort	Car Port
-           Detchd	Detached from home
-           NA	No Garage
-    		
-    GarageYrBlt: Year garage was built
-    		
-    GarageFinish: Interior finish of the garage
-    
-           Fin	Finished
-           RFn	Rough Finished	
-           Unf	Unfinished
-           NA	No Garage
-    		
-    GarageCars: Size of garage in car capacity
-    
-    GarageArea: Size of garage in square feet
-    
-    GarageQual: Garage quality
-    
-           Ex	Excellent
-           Gd	Good
-           TA	Typical/Average
-           Fa	Fair
-           Po	Poor
-           NA	No Garage
-    		
-    GarageCond: Garage condition
-    
-           Ex	Excellent
-           Gd	Good
-           TA	Typical/Average
-           Fa	Fair
-           Po	Poor
-           NA	No Garage
-    		
-    PavedDrive: Paved driveway
-    
-           Y	Paved 
-           P	Partial Pavement
-           N	Dirt/Gravel
-    		
-    WoodDeckSF: Wood deck area in square feet
-    
-    OpenPorchSF: Open porch area in square feet
-    
-    EnclosedPorch: Enclosed porch area in square feet
-    
-    3SsnPorch: Three season porch area in square feet
-    
-    ScreenPorch: Screen porch area in square feet
-    
-    PoolArea: Pool area in square feet
-    
-    PoolQC: Pool quality
-    		
-           Ex	Excellent
-           Gd	Good
-           TA	Average/Typical
-           Fa	Fair
-           NA	No Pool
-    		
-    Fence: Fence quality
-    		
-           GdPrv	Good Privacy
-           MnPrv	Minimum Privacy
-           GdWo	Good Wood
-           MnWw	Minimum Wood/Wire
-           NA	No Fence
-    	
-    MiscFeature: Miscellaneous feature not covered in other categories
-    		
-           Elev	Elevator
-           Gar2	2nd Garage (if not described in garage section)
-           Othr	Other
-           Shed	Shed (over 100 SF)
-           TenC	Tennis Court
-           NA	None
-    		
-    MiscVal: $Value of miscellaneous feature
-    
-    MoSold: Month Sold (MM)
-    
-    YrSold: Year Sold (YYYY)
-    
-    SaleType: Type of sale
-    		
-           WD 	Warranty Deed - Conventional
-           CWD	Warranty Deed - Cash
-           VWD	Warranty Deed - VA Loan
-           New	Home just constructed and sold
-           COD	Court Officer Deed/Estate
-           Con	Contract 15% Down payment regular terms
-           ConLw	Contract Low Down payment and low interest
-           ConLI	Contract Low Interest
-           ConLD	Contract Low Down
-           Oth	Other
-    		
-    SaleCondition: Condition of sale
-    
-           Normal	Normal Sale
-           Abnorml	Abnormal Sale -  trade, foreclosure, short sale
-           AdjLand	Adjoining Land Purchase
-           Alloca	Allocation - two linked properties with separate deeds, typically condo with a garage unit	
-           Family	Sale between family members
-           Partial	Home was not completed when last assessed (associated with New Homes)
+
+
+### Basement 
+
+If TotalBsmtSF ==0 replace null with No basment in:
+
+    - Exposure
+    - Quality
+    - FullBath
+    - HalfBat  
+</br>
+If BsmntFinSF 1 & 2== 0, replace null with no BsmntFinType#
+
+    - BsmtFinSF 1 & 2
+```{r, warning=FALSE,message=FALSE, echo=FALSE}
+
+df <- df %>% mutate(BsmtFinType1 = ifelse(BsmtFinSF1==0, "No Basment 1", BsmtFinType1),
+             BsmtFinType1 = ifelse(BsmtFinSF2==0, "No Basment 2", BsmtFinType2),
+             BsmtCond = ifelse(TotalBsmtSF==0, "No Basment", BsmtCond),
+             BsmtQual = ifelse(TotalBsmtSF==0, "No Basment", BsmtQual),
+             BsmtExposure = ifelse(TotalBsmtSF==0, "No Basment", BsmtExposure),
+             BsmtFullBath = ifelse(TotalBsmtSF==0, 0, BsmtFullBath),
+             BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath)
+)
+
+             
+
+missing_values(df[grepl("Bsmt",names(df))]) %>% kable()%>%
+  kable_styling() %>%
+  add_header_above(c("Basement"=3))
+
+```
