@@ -1,4 +1,4 @@
-## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE--------------------------------------
+## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE------------------
 options(warn=-1)
 options(tidyverse.quiet = TRUE)
 if(!require(tidyverse, warn.conflicts = FALSE)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
@@ -8,11 +8,11 @@ if(!require(lubridate)) install.packages("lubridate")
 if(!require(devtools)) install.packages("devtools")
 if(!require(gridExtra)) install.packages("gridExtra")
 if(!require(kableExtra)) install.packages("kableExtra")
-if(!require(ggraph)) install.packages("ggraph")
-if(!require(igraph)) install.packages("igraph")
+if(!require(corrgram)) install.packages("corrgram")
 
 
-## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE--------------------------------------
+
+## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE------------------
 library(tidyverse, warn.conflicts = FALSE)
 library(caret)
 library(data.table)
@@ -22,6 +22,7 @@ library(gridExtra)
 library(kableExtra) 
 library(plyr)
 library(Matrix)
+library(corrgram)
 options(tinytex.verbose = TRUE)
 
 #updating default size text of ggplots
@@ -30,10 +31,9 @@ update_geom_defaults("text", list(size = 16))
 #Converting Markdown to R script.
 knitr::purl("HousePricing.Rmd")
 
+
 # Suppress summarise info
 options(dplyr.summarise.inform = FALSE)
-
-
 
 #mode function get most frequent value.
 mode<- function(x){
@@ -41,14 +41,7 @@ mode<- function(x){
   ux[which.max(tabulate(match(x, ux)))]}
 
 
-
-#Label_quality_Conditions encoder.
-Quac_Cond_decoder <- function(df,col){
-evaluation_quality <- data.table("quality" = c("Po","Fa","TA","Gd","Ex"), "score"=c(1,2,3,4,5))
-mapvalues(as.vector(df[,col]),evaluation_quality$quality,evaluation_quality$score)}
-
-
-## -------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 read_csv <- function(file){
     path_data <- "data"
     filename <- paste(path_data,file,sep="/")
@@ -60,13 +53,12 @@ test_set <-read_csv('test.csv')
 train_set<- read_csv('train.csv')
 
 
-#Join datasets, For this project we going to join train and set data for the cleansing and EDA, later we going to split again by SalesPrices not null as train set and test set is null.
+#Join datasets, For this project we going to join train and set data for the cleansing and EDA,
+#later we going to split again by SalesPrices not null as train set and test set is null.
 df<- bind_rows(train_set,test_set)
 
 
-## ---- echo=FALSE,warning=FALSE,message=FALSE------------------------------------------------------
-
-
+## ---- echo=FALSE,warning=FALSE,message=FALSE----------------------------------
 #Train SET INFO
 colnames_trian_set<-colnames(train_set)
 memory_usage_train_set<-format(object.size(train_set),units="MB")
@@ -78,7 +70,7 @@ memory_usage_test_set<-format(object.size(test_set),units="MB")
 dim_test_set <- dim(test_set)
 
 
-## ---- echo=FALSE,  message=FALSE, warning=FALSE---------------------------------------------------
+## ---- echo=FALSE,  message=FALSE, warning=FALSE-------------------------------
 
 #searching for the additional column in the train set
 colname_diff <-setdiff(colnames_trian_set,colnames_test_set)
@@ -105,14 +97,14 @@ numerical_columns_tb <- matrix(numerical_columns,10,byrow=TRUE) %>%kable()%>%
   add_header_above(c("Numerical Columns"=4))
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 #Remove MSSubClass from numeric columns
 numerical_columns <- numerical_columns[!(numerical_columns %in% c("MSSubClass"))]
 #Append MSSubClass to categorical columns
 categorical_columns<-append(categorical_columns,"MSSubClass")
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 #getting percentage of null values in each column
 missing_values<- function(df){
 nan_columns <- sort(colMeans(is.na(df)))
@@ -141,7 +133,7 @@ na_numerical <- nan_summary %>% filter(type=="numerical") %>% select(name,prc_na
 
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 df <-df[, order(names(df))]
 #By looking in the description file, i bring columns that allow NA.
 add_features <- c("Alley"
@@ -190,18 +182,8 @@ temp_df %>% kable()%>% pack_rows(index = table(fct_inorder(temp_df$name_features
   add_header_above(c("Related Features"=3))
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------
-rm(temp_df)
-df<- df %>% mutate(
-          PoolQC = ifelse(is.na(PoolArea)|PoolArea==0,"No Pool",PoolQC),
-          FireplaceQu = ifelse(is.na(Fireplaces)|Fireplaces==0,"No Fireplace",FireplaceQu),
-          Alley = ifelse(is.na(Alley),"None Alley",Alley),
-          Fence = ifelse(is.na(Fence),"None Fence",Fence),
-          MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType)
-         )
-
-
-## ---- message=FALSE, warning=FALSE, echo=FALSE----------------------------------------------------
+## ---- message=FALSE, warning=FALSE, echo=FALSE--------------------------------
+df<- df %>% mutate(MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType))
 
 MasVnr_temp <- df  %>% filter(MasVnrType!="None MasVnr")
 
@@ -226,7 +208,7 @@ grid.arrange(
 
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 mode_masvnr <- MasVnr_temp   %>% group_by(YearBuilt) %>% dplyr::summarise(t_mode =mode(MasVnrType))
 df<- df %>% left_join(mode_masvnr,  by="YearBuilt") %>%
   mutate(MasVnrType = ifelse(is.na(MasVnrType),t_mode,MasVnrType))%>%
@@ -238,25 +220,42 @@ missing_values(df[grepl("MasVnr",names(df))])  %>% kable()%>%
   add_header_above(c("Mansory Veneer"=3))
 
 
-## -------------------------------------------------------------------------------------------------
+## ---- warning=FALSE,message=FALSE, echo=FALSE---------------------------------
+bsmt_cols <- grepl("Bsmt",names(df))
+#Label_quality_Conditions encoder.
+QC_Cond_decoder <- function(col,No_feature){
+evaluation_quality <- data.table("quality" = c(No_feature,"Po","Fa","TA","Gd","Ex"), "score"=c(0,1,2,3,4,5))
+mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
+
+bsmt_finT <- function(col,No_feature){
+evaluation_quality <- data.table("quality" = c(No_feature,"Unf","LwQ","Rec","BLQ","ALQ","GLQ"), "score"=c(0,1,2,3,4,5,6))
+mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
 
 
+bsmt_Exposure <- function(col){
+evaluation_quality <- data.table("quality" = c("No Basement","No","Min","Av","Gd"), "score"=c(0,1,2,3,4))
+mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
 
-## ---- warning=FALSE,message=FALSE, echo=FALSE-----------------------------------------------------
-
-df <- df %>% mutate(BsmtFinType1 = ifelse(BsmtFinSF1==0, "No Basment 1", BsmtFinType1),
-             BsmtFinType1 = ifelse(BsmtFinSF2==0, "No Basment 2", BsmtFinType2),
-             BsmtCond = ifelse(TotalBsmtSF==0, "No Basment", BsmtCond),
-             BsmtQual = ifelse(TotalBsmtSF==0, "No Basment", BsmtQual),
-             BsmtExposure = ifelse(TotalBsmtSF==0, "No Basment", BsmtExposure),
+df <- df %>% 
+  mutate(BsmtExposure=ifelse(is.na(BsmtExposure),"No",BsmtExposure))%>%
+  mutate(
+             TotalBsmtSF = ifelse(is.na(TotalBsmtSF),0,TotalBsmtSF),
+             BsmtUnfSF = ifelse(is.na(BsmtUnfSF),0,BsmtUnfSF),
+             BsmtFinSF1 = ifelse(is.na(BsmtFinSF1),0,BsmtFinSF1),
+             BsmtFinSF2 = ifelse(is.na(BsmtFinSF2),0,BsmtFinSF2),
+             BsmtFinType1 = as.numeric(bsmt_finT(ifelse(BsmtFinSF1==0|is.na(BsmtFinSF1), "No Basement 1", BsmtFinType1), "No Basement 1")),
+             BsmtFinType2 = as.numeric(bsmt_finT(ifelse(BsmtFinSF2==0|is.na(BsmtFinSF2), "No Basement 2", BsmtFinType2), "No Basement 2")),
+             BsmtCond = as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtCond),"No Basement")),
+             BsmtQual =  as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtQual),"No Basement")),
+             BsmtExposure =  as.numeric(bsmt_Exposure(ifelse(TotalBsmtSF==0, "No Basement", BsmtExposure))),
              BsmtFullBath = ifelse(TotalBsmtSF==0, 0, BsmtFullBath),
-             BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath)
+             BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath),
 )
+df[,"BsmtUnfSF"][df$TotalBsmtSF>0] <- ifelse(df$BsmtUnfSF==0,0,df$BsmtUnfSF/df$TotalBsmtSF)
+bsmt_cor<-cor(df[rowMeans(is.na(df[,bsmt_cols]))==0,bsmt_cols])
 
-             
 
-missing_values(df[grepl("Bsmt",names(df))]) %>% kable()%>%
-  kable_styling() %>%
-  add_header_above(c("Basement"=3))
-
+corrgram(df[rowMeans(is.na(df[,bsmt_cols]))==0,bsmt_cols],  lower.panel=panel.shade,
+  upper.panel=NULL, text.panel=panel.txt,
+  main="Basement Dimensions")
 

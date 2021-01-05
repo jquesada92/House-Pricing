@@ -14,8 +14,8 @@ if(!require(lubridate)) install.packages("lubridate")
 if(!require(devtools)) install.packages("devtools")
 if(!require(gridExtra)) install.packages("gridExtra")
 if(!require(kableExtra)) install.packages("kableExtra")
-if(!require(ggraph)) install.packages("ggraph")
-if(!require(igraph)) install.packages("igraph")
+if(!require(corrgram)) install.packages("corrgram")
+
 ```
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, include=FALSE}
@@ -28,6 +28,7 @@ library(gridExtra)
 library(kableExtra) 
 library(plyr)
 library(Matrix)
+library(corrgram)
 options(tinytex.verbose = TRUE)
 
 #updating default size text of ggplots
@@ -36,22 +37,14 @@ update_geom_defaults("text", list(size = 16))
 #Converting Markdown to R script.
 knitr::purl("HousePricing.Rmd")
 
+
 # Suppress summarise info
 options(dplyr.summarise.inform = FALSE)
-
-
 
 #mode function get most frequent value.
 mode<- function(x){
   ux <- unique(x)
   ux[which.max(tabulate(match(x, ux)))]}
-
-
-
-#Label_quality_Conditions encoder.
-Quac_Cond_decoder <- function(df,col){
-evaluation_quality <- data.table("quality" = c("Po","Fa","TA","Gd","Ex"), "score"=c(1,2,3,4,5))
-mapvalues(as.vector(df[,col]),evaluation_quality$quality,evaluation_quality$score)}
 ```
 # Introduccion 
 
@@ -64,10 +57,10 @@ This project consists of determining the value of a house according to its locat
 
 Files:
 
-    train.csv - the training set
+  train.csv - the training set
     test.csv - the test set
-    data_description.txt - full description of each column, originally prepared by Dean De Cock but lightly edited to match the column names used here
-    sample_submission.csv - a benchmark submission from a linear regression on year and month of sale, lot square footage, and number of bedrooms
+    data_description.txt - full description of each column.
+    sample_submission.csv - a benchmark submission from a linear regression on year and month of sale, lot square footage, and number of     bedrooms
 
  
 ```{r}
@@ -82,14 +75,13 @@ test_set <-read_csv('test.csv')
 train_set<- read_csv('train.csv')
 
 
-#Join datasets, For this project we going to join train and set data for the cleansing and EDA, later we going to split again by SalesPrices not null as train set and test set is null.
+#Join datasets, For this project we going to join train and set data for the cleansing and EDA,
+#later we going to split again by SalesPrices not null as train set and test set is null.
 df<- bind_rows(train_set,test_set)
 ```
 
 
 ```{r, echo=FALSE,warning=FALSE,message=FALSE}
-
-
 #Train SET INFO
 colnames_trian_set<-colnames(train_set)
 memory_usage_train_set<-format(object.size(train_set),units="MB")
@@ -100,7 +92,6 @@ colnames_test_set<-colnames(test_set)
 memory_usage_test_set<-format(object.size(test_set),units="MB")
 dim_test_set <- dim(test_set)
 ```
-
 
 # EDA
 
@@ -248,29 +239,6 @@ temp_df %>% kable()%>% pack_rows(index = table(fct_inorder(temp_df$name_features
   kable_styling() %>%
   add_header_above(c("Related Features"=3))
 ```
-### Cleaning set of Quality|Condition|Type where Area or SqrtFeet =0 (Max set of 2 columns)
-This step we going to select most obvious **not** null values, features that have 1 or two columns to replace null values.
-Where we have for example null in Quality or condition Column and 0 in Area or Square feet, we going to replace null values to "None Feature Value".
-    
-    - MasVnr
-    - Pool
-    - Fireplace
-    - Fence
-    - Alley
-    
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-rm(temp_df)
-df<- df %>% mutate(
-          PoolQC = ifelse(is.na(PoolArea)|PoolArea==0,"No Pool",PoolQC),
-          FireplaceQu = ifelse(is.na(Fireplaces)|Fireplaces==0,"No Fireplace",FireplaceQu),
-          Alley = ifelse(is.na(Alley),"None Alley",Alley),
-          Fence = ifelse(is.na(Fence),"None Fence",Fence),
-          MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType)
-         )
-```
-</br>
-After replacing, as result we still having null values, for those features that are keeping null values we going to take another approach for each one.
-`r missing_values(df[grepl("MasVnr|Pool|Fire|Fence|Alley",names(df))]) %>% kable()%>% kable_styling() `
 
 ### Masonry veneer
 
@@ -280,6 +248,7 @@ Columns:
     2. MasVnrArea.
 </br>    
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
+df<- df %>% mutate(MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType))
 
 MasVnr_temp <- df  %>% filter(MasVnrType!="None MasVnr")
 
@@ -315,40 +284,47 @@ rm(MasVnr_temp)
 missing_values(df[grepl("MasVnr",names(df))])  %>% kable()%>%
   kable_styling() %>%
   add_header_above(c("Mansory Veneer"=3))
-
 ```
-```{r}
-
-```
-
-
 ### Basement 
 
-If TotalBsmtSF ==0 replace null with No basment in:
+First we are going to replace the null values of columns Bsmt fSF, BsmtFinSF1, BsmtFinSF2 and TotalBsmtSF, by 0. After this we are going to replace the null values of the categorical columns by "No Basement" and "No Basement 1" when BsmtFinSF1 is equal to 0 and "No Basement 2" when BsmtFinSF2 is equal to 0. After the first cleaning we are going to convert the BsmtCond columns, BsmtExposure, BsmtFinType1, BsmtFinType2 and BsmtQual, in numerical values, giving as a classification based on the descriptions that are in the file "data/data_description.txt", to be able to find correlations and finish replacing the null values in these columns, we also transform the BsmtUnfSF column into a percentage of the TotalBsmtSF.</br>
 
-    - Exposure
-    - Quality
-    - FullBath
-    - HalfBat  
-</br>
-If BsmntFinSF 1 & 2== 0, replace null with no BsmntFinType#
-
-    - BsmtFinSF 1 & 2
 ```{r, warning=FALSE,message=FALSE, echo=FALSE}
+bsmt_cols <- grepl("Bsmt",names(df))
+#Label_quality_Conditions encoder.
+QC_Cond_decoder <- function(col,No_feature){
+evaluation_quality <- data.table("quality" = c(No_feature,"Po","Fa","TA","Gd","Ex"), "score"=c(0,1,2,3,4,5))
+mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
 
-df <- df %>% mutate(BsmtFinType1 = ifelse(BsmtFinSF1==0, "No Basment 1", BsmtFinType1),
-             BsmtFinType1 = ifelse(BsmtFinSF2==0, "No Basment 2", BsmtFinType2),
-             BsmtCond = ifelse(TotalBsmtSF==0, "No Basment", BsmtCond),
-             BsmtQual = ifelse(TotalBsmtSF==0, "No Basment", BsmtQual),
-             BsmtExposure = ifelse(TotalBsmtSF==0, "No Basment", BsmtExposure),
+bsmt_finT <- function(col,No_feature){
+evaluation_quality <- data.table("quality" = c(No_feature,"Unf","LwQ","Rec","BLQ","ALQ","GLQ"), "score"=c(0,1,2,3,4,5,6))
+mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
+
+
+bsmt_Exposure <- function(col){
+evaluation_quality <- data.table("quality" = c("No Basement","No","Min","Av","Gd"), "score"=c(0,1,2,3,4))
+mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
+
+df <- df %>% 
+  mutate(BsmtExposure=ifelse(is.na(BsmtExposure),"No",BsmtExposure))%>%
+  mutate(
+             TotalBsmtSF = ifelse(is.na(TotalBsmtSF),0,TotalBsmtSF),
+             BsmtUnfSF = ifelse(is.na(BsmtUnfSF),0,BsmtUnfSF),
+             BsmtFinSF1 = ifelse(is.na(BsmtFinSF1),0,BsmtFinSF1),
+             BsmtFinSF2 = ifelse(is.na(BsmtFinSF2),0,BsmtFinSF2),
+             BsmtFinType1 = as.numeric(bsmt_finT(ifelse(BsmtFinSF1==0|is.na(BsmtFinSF1), "No Basement 1", BsmtFinType1), "No Basement 1")),
+             BsmtFinType2 = as.numeric(bsmt_finT(ifelse(BsmtFinSF2==0|is.na(BsmtFinSF2), "No Basement 2", BsmtFinType2), "No Basement 2")),
+             BsmtCond = as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtCond),"No Basement")),
+             BsmtQual =  as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtQual),"No Basement")),
+             BsmtExposure =  as.numeric(bsmt_Exposure(ifelse(TotalBsmtSF==0, "No Basement", BsmtExposure))),
              BsmtFullBath = ifelse(TotalBsmtSF==0, 0, BsmtFullBath),
-             BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath)
+             BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath),
 )
+df[,"BsmtUnfSF"][df$TotalBsmtSF>0] <- ifelse(df$BsmtUnfSF==0,0,df$BsmtUnfSF/df$TotalBsmtSF)
+bsmt_cor<-cor(df[rowMeans(is.na(df[,bsmt_cols]))==0,bsmt_cols])
 
-             
 
-missing_values(df[grepl("Bsmt",names(df))]) %>% kable()%>%
-  kable_styling() %>%
-  add_header_above(c("Basement"=3))
-
+corrgram(df[rowMeans(is.na(df[,bsmt_cols]))==0,bsmt_cols],  lower.panel=panel.shade,
+  upper.panel=NULL, text.panel=panel.txt,
+  main="Basement Dimensions")
 ```
