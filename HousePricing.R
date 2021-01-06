@@ -6,10 +6,11 @@ if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.
 if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
 if(!require(lubridate)) install.packages("lubridate")
 if(!require(devtools)) install.packages("devtools")
+if(!require(grid)) install.packages("grid")
 if(!require(gridExtra)) install.packages("gridExtra")
 if(!require(kableExtra)) install.packages("kableExtra")
 if(!require(corrgram)) install.packages("corrgram")
-
+if(!require(reshape2)) install.packages("reshape2")
 
 
 ## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE------------------
@@ -18,11 +19,13 @@ library(caret)
 library(data.table)
 library(lubridate)
 library(devtools)
+library(grid)
 library(gridExtra)
 library(kableExtra) 
 library(plyr)
-library(Matrix)
 library(corrgram)
+library(reshape2)
+
 options(tinytex.verbose = TRUE)
 
 #updating default size text of ggplots
@@ -98,6 +101,9 @@ numerical_columns_tb <- matrix(numerical_columns,10,byrow=TRUE) %>%kable()%>%
 
 
 ## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
+rm(colname_diff)
+rm(categorical_columns_tb)
+rm(numerical_columns_tb)
 #Remove MSSubClass from numeric columns
 numerical_columns <- numerical_columns[!(numerical_columns %in% c("MSSubClass"))]
 #Append MSSubClass to categorical columns
@@ -134,6 +140,9 @@ na_numerical <- nan_summary %>% filter(type=="numerical") %>% select(name,prc_na
 
 
 ## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
+rm(nan_summary)
+rm(na_numerical)
+rm(na_categorical)
 df <-df[, order(names(df))]
 #By looking in the description file, i bring columns that allow NA.
 add_features <- c("Alley"
@@ -182,6 +191,44 @@ temp_df %>% kable()%>% pack_rows(index = table(fct_inorder(temp_df$name_features
   add_header_above(c("Related Features"=3))
 
 
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
+
+QC_Cond_decoder <- function(col,No_feature){
+evaluation_quality <- data.table("quality" = c(No_feature,"Po","Fa","TA","Gd","Ex"), "score"=c(0,1,2,3,4,5))
+mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
+
+df<- df %>% mutate(PoolArea= ifelse(is.na(PoolArea),0,PoolArea)) %>% mutate(PoolQC=QC_Cond_decoder(ifelse(PoolArea==0,"No Pool", PoolQC),"No Pool"))
+
+df %>% ggplot(aes(y=PoolArea,x=as.factor(PoolQC))) + geom_boxplot()
+
+
+
+
+
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
+df<- df %>% mutate(PoolQC=ifelse(is.na(PoolQC),5,PoolQC))
+missing_values(df[,grepl("Pool",names(df))])%>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Pool Missing Values"=3))
+
+
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
+grid.arrange(df %>% ggplot(aes(x=MiscFeature)) + geom_bar()+labs(title="MiscFeature"),df %>% ggplot(aes(x=Alley)) + geom_bar()+labs(title="Alley"),df %>% ggplot(aes(x=Fence)) + geom_bar()+labs(title="Fence"),ncol=3
+             )
+
+
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
+df <- df %>% mutate(MiscFeature=ifelse(is.na(MiscFeature),"No Feature",MiscFeature),
+                    Alley=ifelse(is.na(Alley),"No Alley",Alley),
+                    Fence=ifelse(is.na(Fence),"No Fence",Fence)
+                    )
+missing_values(df[,c("MiscFeature","Alley","Fence")])%>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("MiscF, Alley & Fence Missing Values"=3))
+
+
 ## ---- message=FALSE, warning=FALSE, echo=FALSE--------------------------------
 df<- df %>% mutate(MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType))
 
@@ -195,7 +242,7 @@ grid.arrange(
                     geom_boxplot() +
                     stat_summary(fun=mean,geom="point")+
                     coord_flip()
-                    ,ncol = 2, nrow = 1),
+                    ,ncol = 2, nrow = 1,top=textGrob("Mansory Veneer",gp=gpar(fontsize=20,font=3))),
        MasVnr_temp %>% group_by(YearBuilt,MasVnrType) %>% dplyr::summarise(count_=n()) %>%
          ggplot(aes(x=YearBuilt,y=count_,col=MasVnrType)) + 
         geom_line()+
@@ -203,8 +250,7 @@ grid.arrange(
               legend.position = c(0,1),
         axis.text.x = element_text(angle = 90, vjust = 0.5)) +
         scale_x_continuous(breaks=seq(min(MasVnr_temp$YearBuilt),max(MasVnr_temp$YearBuilt),5)),
-      heights=c(1/3, 2/3)
-)
+      heights=c(1/3, 2/3))
 
 
 
@@ -223,39 +269,84 @@ missing_values(df[grepl("MasVnr",names(df))])  %>% kable()%>%
 ## ---- warning=FALSE,message=FALSE, echo=FALSE---------------------------------
 bsmt_cols <- grepl("Bsmt",names(df))
 #Label_quality_Conditions encoder.
-QC_Cond_decoder <- function(col,No_feature){
-evaluation_quality <- data.table("quality" = c(No_feature,"Po","Fa","TA","Gd","Ex"), "score"=c(0,1,2,3,4,5))
-mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
-
 bsmt_finT <- function(col,No_feature){
 evaluation_quality <- data.table("quality" = c(No_feature,"Unf","LwQ","Rec","BLQ","ALQ","GLQ"), "score"=c(0,1,2,3,4,5,6))
 mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
 
 
 bsmt_Exposure <- function(col){
-evaluation_quality <- data.table("quality" = c("No Basement","No","Min","Av","Gd"), "score"=c(0,1,2,3,4))
+evaluation_quality <- data.table("quality" = c("No Basement","No","Mn","Av","Gd"), "score"=c(0,1,2,3,4))
 mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
 
 df <- df %>% 
-  mutate(BsmtExposure=ifelse(is.na(BsmtExposure),"No",BsmtExposure))%>%
+  mutate(BsmtExposure=ifelse(is.na(BsmtExposure),"No",BsmtExposure),
+         TotalBsmtSF = ifelse(is.na(TotalBsmtSF),0,TotalBsmtSF),
+         BsmtUnfSF = ifelse(is.na(BsmtUnfSF),0,BsmtUnfSF),
+         BsmtFinSF1 = ifelse(is.na(BsmtFinSF1),0,BsmtFinSF1),
+         BsmtFinSF2 = ifelse(is.na(BsmtFinSF2),0,BsmtFinSF2)
+         )%>%
   mutate(
-             TotalBsmtSF = ifelse(is.na(TotalBsmtSF),0,TotalBsmtSF),
-             BsmtUnfSF = ifelse(is.na(BsmtUnfSF),0,BsmtUnfSF),
-             BsmtFinSF1 = ifelse(is.na(BsmtFinSF1),0,BsmtFinSF1),
-             BsmtFinSF2 = ifelse(is.na(BsmtFinSF2),0,BsmtFinSF2),
              BsmtFinType1 = as.numeric(bsmt_finT(ifelse(BsmtFinSF1==0|is.na(BsmtFinSF1), "No Basement 1", BsmtFinType1), "No Basement 1")),
              BsmtFinType2 = as.numeric(bsmt_finT(ifelse(BsmtFinSF2==0|is.na(BsmtFinSF2), "No Basement 2", BsmtFinType2), "No Basement 2")),
              BsmtCond = as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtCond),"No Basement")),
              BsmtQual =  as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtQual),"No Basement")),
              BsmtExposure =  as.numeric(bsmt_Exposure(ifelse(TotalBsmtSF==0, "No Basement", BsmtExposure))),
              BsmtFullBath = ifelse(TotalBsmtSF==0, 0, BsmtFullBath),
-             BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath),
-)
-df[,"BsmtUnfSF"][df$TotalBsmtSF>0] <- ifelse(df$BsmtUnfSF==0,0,df$BsmtUnfSF/df$TotalBsmtSF)
-bsmt_cor<-cor(df[rowMeans(is.na(df[,bsmt_cols]))==0,bsmt_cols])
+             BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath))
+
+df["BsmtUnfSF"] <- ifelse(df$TotalBsmtSF>0,(df$BsmtUnfSF)/df$TotalBsmtSF,0)
+missing_values(df[,bsmt_cols])  %>% kable()%>%
+  kable_styling() %>%
+  add_header_above(c("Mansory Veneer"=3))
 
 
+## ---- warning=FALSE,message=FALSE, echo=FALSE---------------------------------
+bsmt_cor<-cor(df[rowMeans(is.na(df[,grepl("Bsmt",names(df))]))==0,grepl("Bsmt",names(df))])
+temp <- melt(bsmt_cor) %>% filter(value>=0.5 & Var1!=Var2) %>% arrange(-value)
+temp <-  temp[seq(1,nrow(temp),2),]%>% kable()%>%
+  kable_styling() %>%
+  add_header_above(c("High Correlated Dim" =4))
 corrgram(df[rowMeans(is.na(df[,bsmt_cols]))==0,bsmt_cols],  lower.panel=panel.shade,
   upper.panel=NULL, text.panel=panel.txt,
   main="Basement Dimensions")
+
+
+
+## ---- echo=FALSE,message=FALSE,warning=FALSE----------------------------------
+avg_sf <- mean(df$TotalBsmtSF)
+sd_sf<- sd(df$TotalBsmtSF)
+z<- (df$TotalBsmtSF -avg_sf)/sd_sf
+histogram(z,main="TotalBsmtSF(Zscore)")
+
+
+## ---- echo=FALSE,message=FALSE,warning=FALSE----------------------------------
+BsmtQual_model<- lm(BsmtQual~TotalBsmtSF,data=filter(df,abs(z)<2.5))
+BsmtQual_pred  <- lapply(predict(BsmtQual_model,data=df,newdata=df),as.integer)
+
+df<- df %>% mutate(predic=as.integer(predict(lm(BsmtQual~TotalBsmtSF,data=.),newdata=.))) %>% mutate(SE_= (BsmtQual-predic)^2)
+df %>% filter(abs(z)<2.5) %>%ggplot(aes(x=TotalBsmtSF,y=BsmtQual)) + geom_point() + geom_smooth() + labs(title="BsmtQual Vs TotalBsmtSF")
+
+rm(BsmtQual_model)
+rm(BsmtQual_pred)
+
+
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
+bsmtCond_mode <- mode(df$BsmtCond)
+bsmtFinF2_mode <- mode(df$BsmtFinType2)
+df<- df %>% mutate(BsmtQual=ifelse(is.na(BsmtQual),predic,BsmtQual),
+                   BsmtCond = ifelse(is.na(BsmtCond),bsmtCond_mode,BsmtCond),
+                   BsmtFinType2 = ifelse(is.na(BsmtFinType2),bsmtFinF2_mode ,BsmtFinType2)) %>%
+                   select(-predic,-SE_)
+missing_values(df[,bsmt_cols]) %>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Bsmt Missing Values"=3))
+
+
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
+df<- df %>% mutate(Fireplaces=ifelse(is.na(Fireplaces),0,Fireplaces)) %>% mutate(FireplaceQu=QC_Cond_decoder(ifelse(Fireplaces==0,"No Fireplace",FireplaceQu),"No Fireplace"))
+missing_values(df[,grepl("Fire",names(df))]) %>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Fireplace Missing Values"=3)) 
 
