@@ -1012,9 +1012,8 @@ qqnorm(df$SalePrice,main = "Before Log Transformation")
 qqline(df$SalePrice)
 ```
 ```{r}
-df$SalePrice <- log(df$SalePrice)
-qqnorm(df$SalePrice,main = "After Log Transformation")
-qqline(df$SalePrice)
+qqnorm(log(df$SalePrice),main = "After Log Transformation")
+qqline(log(df$SalePrice))
 
 ```
 
@@ -1081,69 +1080,7 @@ Y_test<- test_set$SalePrice
 
 `r nrow(train_set)`
 `r nrow(test_set)`
-
-## Lasso Regression
-Multiple linear regression is a statistical method that attempts to model the relationship between a continuous variable and two or more independent variables by fitting a linear equation. Three of the limitations that appear in practice when trying to use this type of model (adjusted by ordinary least squares) are:
-
-    They are adversely affected by the incorporation of correlated predictors.
-
-    They do not select predictors, all predictors are incorporated into the model even if they do not provide relevant information. This often complicates the interpretation of the model and reduces its predictive ability. There are other models such as random forest or gradient boosting that are capable of selecting predictors.
-
-    They cannot be adjusted when the number of predictors is greater than the number of observations.
-
-Some of the strategies that can be applied to mitigate the impact of these problems are:
-
-    Subset selection: use an iterative process that discards the least relevant predictors.
-
-    Ridge, Lasso or Elastic Net regularization: these methods force the coefficients of the model to tend to zero, thus minimizing the risk of overfitting, reducing variance, attenuating the effect of the correlation between predictors and reducing the influence on the model of the least predictors. relevant.
-
-    Dimensionality reduction: they create a reduced number of new predictors (components) from linear or non-linear combinations of the original variables and fit the model with them.
-
-```{r}
-
-set.seed(250000)
-cv <-trainControl(method="cv", number=15)
-lasso<- train(x= X_train
-              , y= Y_train
-              , method='glmnet'
-              , trControl= cv
-              , tuneGrid= expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))) 
-plot(lasso)
-
-```
-```{r}
-t(lasso$bestTune %>% select(alpha,lambda))%>%kable() %>% 
-  kable_styling(font_size = 10) %>%
-  add_header_above(c("Parameters"=2))
-```
-
-
-```{r ,echo=FALSE}
-lassoVarImp <- varImp(lasso,scale=F)
-lassoImportance <- lassoVarImp$importance
-
-varsSelected <- length(which(lassoImportance$Overall!=0))
-varsNotSelected <- length(which(lassoImportance$Overall==0))
-
-cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
-```
-
-```{r, echo=FALSE}
-LassoPred <- predict(lasso, X_test)
-predictions_lasso <- exp(LassoPred) #need to reverse the log to the real values
-real<-exp(Y_test)
-d = real-predictions_lasso
-mse = mean((d)^2)
-mae = mean(abs(d))
-rmse = sqrt(mse)
-R2 = 1-(sum((d)^2)/sum((real-mean(real))^2))
-
-cat(" MAE:", mae, "\n", "MSE:", mse, "\n", 
-
-    "RMSE:", rmse, "\n", "R-squared:", R2)
-```
-
-## 
+## Random Forests
 
 
 The basic algorithm for a regression random forest can be generalized to the following:
@@ -1180,7 +1117,7 @@ Disadvantages:
     
 randomForest also allows us to use a validation set to measure predictive accuracy if we did not want to use the OOB samples. Here we split our training set further to create a training and validation set. We then supply the validation data in the xtest and ytest arguments.
 ```{r}
-set.seed(2000)
+set.seed(250000)
 
 rf_model<-randomForest(
   formula = SalePrice ~ .,
@@ -1200,12 +1137,12 @@ rfImportance <- rf_model$importance
 varsSelected <- length(which(rfImportance!=0))
 varsNotSelected <- length(which(rfImportance==0))
 
-cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
+cat('Raandome Forest uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
 ```
 
 ```{r}
-rf_mode_pred <- exp(predict(rf_model,X_test))
-original<- exp(Y_test)
+rf_mode_pred <- predict(rf_model,X_test)
+original<- Y_test
 d = original-rf_mode_pred
 mse = mean((d)^2)
 mae = mean(abs(d))
@@ -1216,6 +1153,69 @@ cat(" MAE:", mae, "\n", "MSE:", mse, "\n",
 
     "RMSE:", rmse, "\n", "R-squared:", R2)
 ```
+
+## Lasso Regression
+Multiple linear regression is a statistical method that attempts to model the relationship between a continuous variable and two or more independent variables by fitting a linear equation. Three of the limitations that appear in practice when trying to use this type of model (adjusted by ordinary least squares) are:
+
+    They are adversely affected by the incorporation of correlated predictors.
+
+    They do not select predictors, all predictors are incorporated into the model even if they do not provide relevant information. This often complicates the interpretation of the model and reduces its predictive ability. There are other models such as random forest or gradient boosting that are capable of selecting predictors.
+
+    They cannot be adjusted when the number of predictors is greater than the number of observations.
+
+Some of the strategies that can be applied to mitigate the impact of these problems are:
+
+    Subset selection: use an iterative process that discards the least relevant predictors.
+
+    Ridge, Lasso or Elastic Net regularization: these methods force the coefficients of the model to tend to zero, thus minimizing the risk of overfitting, reducing variance, attenuating the effect of the correlation between predictors and reducing the influence on the model of the least predictors. relevant.
+
+    Dimensionality reduction: they create a reduced number of new predictors (components) from linear or non-linear combinations of the original variables and fit the model with them.
+
+```{r}
+
+set.seed(2500000)
+cv <-trainControl(method="cv", number=15)
+lasso<- train(x= X_train
+              , y= log(Y_train)
+              , method='glmnet'
+              , trControl= cv
+              , tuneGrid= expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))) 
+plot(lasso)
+
+```
+```{r}
+t(lasso$bestTune %>% select(alpha,lambda))%>%kable() %>% 
+  kable_styling(font_size = 10) %>%
+  add_header_above(c("Parameters"=2))
+```
+
+
+```{r ,echo=FALSE}
+lassoVarImp <- varImp(lasso,scale=F)
+lassoImportance <- lassoVarImp$importance
+
+varsSelected <- length(which(lassoImportance$Overall!=0))
+varsNotSelected <- length(which(lassoImportance$Overall==0))
+
+cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
+```
+
+```{r, echo=FALSE}
+LassoPred <- predict(lasso, X_test)
+predictions_lasso <- exp(LassoPred) #need to reverse the log to the real values
+real<- Y_test
+d = real-predictions_lasso
+mse = mean((d)^2)
+mae = mean(abs(d))
+rmse = sqrt(mse)
+R2 = 1-(sum((d)^2)/sum((real-mean(real))^2))
+
+cat(" MAE:", mae, "\n", "MSE:", mse, "\n", 
+
+    "RMSE:", rmse, "\n", "R-squared:", R2)
+```
+
+
 
 # Conclusion
 
