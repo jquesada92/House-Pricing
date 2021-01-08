@@ -325,7 +325,7 @@ temp_df %>% kable()%>% pack_rows(index = table(fct_inorder(temp_df$name_features
   add_header_above(c("Related Features"=3))
 ```
 ## Categorical to Numerical DATA 
-*Label Encoder**: It is used to transform non-numerical labels to numerical labels (or nominal categorical variables). Numerical labels are always between 0 and n_classes-1.)
+**Label Encoder**: It is used to transform non-numerical labels to numerical labels (or nominal categorical variables). Numerical labels are always between 0 and n_classes-1.)
 and after we going to label encoder the column(It is used to transform non-numerical labels to numerical labels (or nominal categorical variables). Numerical labels are always between 0 and n_classes-1.).
 
 After read the data description file i have identify Quality and Condition columns with values:
@@ -339,7 +339,11 @@ After read the data description file i have identify Quality and Condition colum
        
 In each variable of the data set im replacing No existance feature for the string "None" or "No" + feature Name, and giving a score from 0 to No existant to 5 for Excellent  quality or condition.
 
-###   Variables
+
+**One-hot encoding** is the process of converting a categorical variable with multiple categories into multiple variables, each with a value of 1 or 0.
+are commonly used in statistical analyses and in more simple descriptive statistics. A dummy column is one which has a value of one when a categorical event occurs and a zero when it doesn’t occur. In most cases this is a feature of the event/person/object being described.
+
+##   Variables
 
 For the analysis and cleaning of the data I am going to divide into the different variables and related columns to be able to find null values ​​and be able to replace it because it is because it is a null value because it does not have the characteristic or if it really is a null value where we have to do analysis correlation and use another column to be able to replace a grouped average and replace the values ​​according to the case and try to convert the categorical data into numeric if possible, at the end of the cleaning of each variable (Pool, Basement, etc.) we will see the correlation of each column against the sale price and we will create a list of possible columns to discard for our model.
 ```{r}
@@ -347,9 +351,10 @@ For the analysis and cleaning of the data I am going to divide into the differen
 cols_to_Drop <- NULL
 ```
 
+###    LotFrontage
 
-####    LotFrontage
-This is a numeric column im going to calculate the z_score and understan the distribution, if is highly skewed distributionswe shoul use log transform to make it  less skewed.
+This is a numeric column im going to calculate the z_score and understan the distribution, if is highly skewed distributionswe shoul use log transform to make it  less skewed.  
+
 ```{r, echo=FALSE, message=FALSE,warning=FALSE}
 #Replace with Average
 z_score_lotfrtage <- (df$LotFrontage - mean(df$LotFrontage,na.rm=TRUE))/sd(df$LotFrontage,na.rm=TRUE)
@@ -363,7 +368,7 @@ df$LotFrontage <- ifelse(is.na(df$LotFrontage),filter_mean ,df$LotFrontage)
 ```
 
 
-####    Pool
+###    Pool
 
 First we going to replace NA in PoolArea to 0, then im replacing PoolQC to No Pool when Area is equal to 0 .  
 
@@ -392,7 +397,7 @@ missing_values(df[,grepl("Pool",names(df))])%>% kable() %>%
 ```
 
 
-#### Masonry veneer.  
+### Masonry veneer.  
 </br>
 Masonry veneer walls consist of a single non-structural external layer of masonry, typically made of brick, stone or manufactured stone. Masonry veneer can have an air space behind it and is technically called "anchored veneer". A masonry veneer attached directly to the backing is called "adhered veneer". (https://en.wikipedia.org/wiki/Masonry_veneer)
 </br>    
@@ -435,7 +440,7 @@ missing_values(df[grepl("MasVnr",names(df))])  %>% kable()%>%
   add_header_above(c("Mansory Veneer"=3))
 ```
 
-#### Basement 
+### Basement 
 
 BsmtQual: Evaluates the height of the basement
 
@@ -592,7 +597,7 @@ bsmt_cor%>% kable() %>%
 ```
 
 
-#### Fireplace
+### Fireplace
 
 Fireplaces: Number of fireplaces
 
@@ -616,7 +621,7 @@ missing_values(df[,grepl("Fire",names(df))]) %>% kable() %>%
   add_header_above(c("Fireplace Missing Values"=3)) 
 ```
 
-#### Garage
+### Garage
 		
 GarageType: Garage location
 		
@@ -718,7 +723,7 @@ missing_values(df[,grepl("Garage",names(df))]) %>% kable() %>%
 ```
 
 Now im transforming GarageType to a Dummy Varibale.
-Dummy variables (or binary variables) are commonly used in statistical analyses and in more simple descriptive statistics. A dummy column is one which has a value of one when a categorical event occurs and a zero when it doesn’t occur. In most cases this is a feature of the event/person/object being described.
+
 ```{r}
 #
 #First join the feautre name with column value.
@@ -731,7 +736,7 @@ df<-df %>%
 
 
 </br>
-#### Exteriors
+### Exteriors
 
 ```{r}
 p1 <- df %>% 
@@ -758,6 +763,7 @@ grid.arrange(p1,p2,p3,p4,ncol=4)
 ```
 It seems that both columns have the same values ​​except for a few values ​​that we can assume are misspelled, I am going to replace the data in the Exterior2nd column with the Exterior1st column
 `r setdiff(unique(df$Exterior1st),unique(df$Exterior2nd))`
+
 
 ```{r}
 replace_exterior2 <- c("Wd Shng"="WdShing", "CmentBd"="CemntBd" ,"Brk Cmn"="BrkComm")
@@ -795,7 +801,7 @@ df <- df%>% select(-Exterior1st,-Exterior2nd)
 ```
 
 
-#### MiscFeature
+### MiscFeature
 </br>
 MiscFeature: Miscellaneous feature not covered in other categories
 		
@@ -822,10 +828,10 @@ missing_values(df[,grepl("Misc",names(df))]) %>% kable() %>%
   kable_minimal()%>%
   add_header_above(c("Misc Missing Values"=3)) 
 ```
+###  Other Columns
+```{r,echo=FALSE}
 
-
-#### Other Columns  
-</br>
+```
 
 ```{r,echo=FALSE,message=FALSE,warning=FALSE}
 #create to dynamically create graph counting values, as use !!as.name so that the tidyverse functions can interpret the inputs as a name. 
@@ -840,10 +846,7 @@ graph_values<- function(df,feature){
     labs(title=feature)+ coord_flip()
 
 }
-```
 
-
-```{r, include=FALSE ,echo=FALSE,message=FALSE,warning=FALSE}
 p_Mszone <- graph_values(df,"MSZoning")
 p_Alley<-graph_values(df,"Alley")
 p_Utilities <- graph_values(df,"Utilities")
@@ -856,8 +859,8 @@ p_Electrical <- graph_values(df,"Electrical")
 p_SaleType <- graph_values(df,"SaleType")
 
 ```
-</br>
-```{r,echo=FALSE,message=FALSE,warning=FALSE, fig.height=  12}
+
+```{r,fig.align = 'center', echo=FALSE,message=FALSE,warning=FALSE, fig.height= 7}
 p<- arrangeGrob(p_Mszone,p_Alley,p_Utilities,p_Functional,p_Fence,p_Air,p_PavedDrive,p_SaleType,p_Electrical,p_KitchenQual)
 grid.arrange(p)
 ```
@@ -899,14 +902,12 @@ missing_values(df)[1:4,]%>% kable() %>%
 ```
 DATA CLEANING DONE!!!!!
 
-## Adding New Columns
 
 
-### Infrastructure
+### Bathrooms
 I will create a column that totals the bathrooms in the house, another that says if it has a second floor.
 ```{r}
 df$TotalBathRooms <- df$BsmtFullBath +  (df$BsmtHalfBath * 0.5) + df$FullBath + (df$HalfBath * 0.5)
-df$Second_Floor<- ifelse(df$X2ndFlrSF>0,1,0) #0=No Second Floor, 1= Second Floor
 
 ```
 
@@ -920,10 +921,10 @@ df$New <- ifelse(df$YrSold==df$YearBuilt, 1, 0)  #0=No, 1= Yes
 
 
 cols_to_Drop <- c(cols_to_Drop,"Yrsold","MoSold","YearBuilt","Id")
-
+df<- df[,!names(df)%in%cols_to_Drop]
 ```
 
-## PreProcessing SalesPrice, Squeare Feet & Area Columns
+## PreProcessing SalesPrice, Squeare Feet & Area Colum
 ```{r}
 
 sf_area<- setdiff(names(df[,grep("SF|Area|SalePrice",names(df))]), cols_to_Drop)
@@ -933,9 +934,8 @@ By Looking in the top 10 row of the dataset, it seems that GrLivArea is the sum 
 `r 100*round(nrow(df %>% filter(GrLivArea == (X1stFlrSF+X2ndFlrSF)))/nrow(df))`% of the time this happens, i going to append X1stFlrSF and X2ndFlrSF to our list of columnst to drop and add a new columns that show if the house have a second floord.
 ```{r}
 cols_to_Drop <- c(cols_to_Drop,"X1stFlrSF", "X2ndFlrSF")
-df<- df[, !names(df)%in%cols_to_Drop]
+df$Second_Floor<- ifelse(df$X2ndFlrSF>0,1,0) #0=No Second Floor, 1= Second Floor
 ```
-
 
 ```{r,warning=FALSE, fig.height=7,message=FALSE}
 sf_area<- setdiff(names(df[,grep("SF|Area|SalePrice",names(df))]), cols_to_Drop)
@@ -959,7 +959,8 @@ p10<- graph_dist(df,sf_area[10])
 p<-arrangeGrob(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10)
 grid.arrange(p)
 ```
-```{r}
+
+```{r, echo=FALSE,warning=FALSE}
 sf_area_Cor<-cor_SalesPrice(df,sf_area)
 sf_area_Cor<-high_cor_cols(sf_area_Cor)
 cols_to_Drop <- c(cols_to_Drop,names(df[,!names(df) %in% unique(sf_area_Cor$Var2) & names(df)%in%sf_area]),"X1stFlrSF")
@@ -968,8 +969,6 @@ sf_area_Cor%>% kable() %>%
   kable_minimal()%>%
   add_header_above(c("SF & Area Columns to Keep"=3))
 ```
-
-
 To support the histograms in this section, I will calculate the skewness and kurtosis, if the absolute value of the skewness is greater than one we will perform a logarithmic transformation
 ```{r}
 sf_area
@@ -1002,10 +1001,10 @@ So, when is the skewness too much?
 
 The rule of thumb seems to be:
 
-    If the skewness is between -0.5 and 0.5, the data are fairly symmetrical.
-    If the skewness is between -1 and -0.5(negatively skewed) or between 0.5 and 1(positively skewed), the data are moderately skewed.
-    If the skewness is less than -1(negatively skewed) or greater than 1(positively skewed), the data are highly skewed.
-    
+If the skewness is between -0.5 and 0.5, the data are fairly symmetrical.
+If the skewness is between -1 and -0.5(negatively skewed) or between 0.5 and 1(positively skewed), the data are moderately skewed.
+If the skewness is less than -1(negatively skewed) or greater than 1(positively skewed), the data are highly skewed.
+
   
 ```{r}
 qqnorm(df$SalePrice,main = "Before Log Transformation")
@@ -1034,8 +1033,6 @@ matrix(categorical_columns,9,byrow=TRUE) %>%kable()%>%
 ```
 
 
-One-hot encoding is the process of converting a categorical variable with multiple categories into multiple variables, each with a value of 1 or 0.
-
 ```{r}
 #
 #First join the feautre name with column value.
@@ -1063,12 +1060,10 @@ Data set was already divided into training and test, the training file contains 
 
 For validate the training model I have splited it into 25% for testing and 75% for training
 
-
-
 ```{r}
-
+set.seed(2500000)
 pre_train_set<- df[!is.na(df$SalePrice),]
-indx  <- createDataPartition(y = pre_train_set$SalePrice, times = 1, p = 0.25, list = FALSE)
+indx  <- createDataPartition(y = pre_train_set$SalePrice, times = 1, p = 0.10, list = FALSE)
 train_set<- pre_train_set[-indx,]
 X_train<- train_set[,names(train_set)!="SalePrice"]
 Y_train <- train_set$SalePrice
@@ -1079,24 +1074,27 @@ Y_test<- test_set$SalePrice
 ```
 
 `r nrow(train_set)`
-`r nrow(test_set)`
+`r nrow(test_set)`  
+  
+  
+
 ## Random Forests
 
 
 The basic algorithm for a regression random forest can be generalized to the following:
 
-1.  Given training data set
-2.  Select number of trees to build (ntrees)
-3.  for i = 1 to ntrees do
-4.  |  Generate a bootstrap sample of the original data
-5.  |  Grow a regression tree to the bootstrapped data
-6.  |  for each split do
-7.  |  | Select m variables at random from all p variables
-8.  |  | Pick the best variable/split-point among the m
-9.  |  | Split the node into two child nodes
-10. |  end
-11. | Use typical tree model stopping criteria to determine when a tree is complete (but do not prune)
-12. end
+    1.  Given training data set
+    2.  Select number of trees to build (ntrees)
+    3.  for i = 1 to ntrees do
+    4.  |  Generate a bootstrap sample of the original data
+    5.  |  Grow a regression tree to the bootstrapped data
+    6.  |  for each split do
+    7.  |  | Select m variables at random from all p variables
+    8.  |  | Pick the best variable/split-point among the m
+    9.  |  | Split the node into two child nodes
+    10. |  end
+    11. | Use typical tree model stopping criteria to determine when a tree is complete (but do not prune)
+    12. end
 
 
 Advantages & Disadvantages
@@ -1115,7 +1113,8 @@ Disadvantages:
     Although accurate, often cannot compete with advanced boosting algorithms
     Less interpretable
     
-randomForest also allows us to use a validation set to measure predictive accuracy if we did not want to use the OOB samples. Here we split our training set further to create a training and validation set. We then supply the validation data in the xtest and ytest arguments.
+randomForest also allows us to use a validation set to measure predictive accuracy if we did not want to use the OOB samples. Here we split our training set further to create a training and validation set. We then supply the validation data in the xtest and ytest arguments.  
+
 ```{r}
 set.seed(250000)
 
@@ -1132,7 +1131,7 @@ plot(rf_model)
 number of trees with lowest MSE `r which.min(rf_model$mse)`
 RMSE of this optimal random forest: `r sqrt(rf_model$mse[which.min(rf_model$mse)])`
 
-```{r}
+```{r,echo=FALSE}
 rfImportance <- rf_model$importance
 varsSelected <- length(which(rfImportance!=0))
 varsNotSelected <- length(which(rfImportance==0))
@@ -1157,31 +1156,30 @@ cat(" MAE:", mae, "\n", "MSE:", mse, "\n",
 ## Lasso Regression
 Multiple linear regression is a statistical method that attempts to model the relationship between a continuous variable and two or more independent variables by fitting a linear equation. Three of the limitations that appear in practice when trying to use this type of model (adjusted by ordinary least squares) are:
 
-    They are adversely affected by the incorporation of correlated predictors.
+They are adversely affected by the incorporation of correlated predictors.
 
-    They do not select predictors, all predictors are incorporated into the model even if they do not provide relevant information. This often complicates the interpretation of the model and reduces its predictive ability. There are other models such as random forest or gradient boosting that are capable of selecting predictors.
+They do not select predictors, all predictors are incorporated into the model even if they do not provide relevant information. This often complicates the interpretation of the model and reduces its predictive ability. There are other models such as random forest or gradient boosting that are capable of selecting predictors.
 
-    They cannot be adjusted when the number of predictors is greater than the number of observations.
+They cannot be adjusted when the number of predictors is greater than the number of observations.
 
 Some of the strategies that can be applied to mitigate the impact of these problems are:
 
-    Subset selection: use an iterative process that discards the least relevant predictors.
+Subset selection: use an iterative process that discards the least relevant predictors.
 
-    Ridge, Lasso or Elastic Net regularization: these methods force the coefficients of the model to tend to zero, thus minimizing the risk of overfitting, reducing variance, attenuating the effect of the correlation between predictors and reducing the influence on the model of the least predictors. relevant.
+Ridge, Lasso or Elastic Net regularization: these methods force the coefficients of the model to tend to zero, thus minimizing the risk of overfitting, reducing variance, attenuating the effect of the correlation between predictors and reducing the influence on the model of the least predictors. relevant.
 
-    Dimensionality reduction: they create a reduced number of new predictors (components) from linear or non-linear combinations of the original variables and fit the model with them.
+Dimensionality reduction: they create a reduced number of new predictors (components) from linear or non-linear combinations of the original variables and fit the model with them.
 
 ```{r}
 
 set.seed(2500000)
-cv <-trainControl(method="cv", number=15)
+cv <-trainControl(method="cv", number=10)
 lasso<- train(x= X_train
               , y= log(Y_train)
               , method='glmnet'
               , trControl= cv
-              , tuneGrid= expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))) 
+              , tuneGrid= expand.grid(alpha =  1, lambda = seq(0.001,0.1,by = 0.0005)))
 plot(lasso)
-
 ```
 ```{r}
 t(lasso$bestTune %>% select(alpha,lambda))%>%kable() %>% 
@@ -1220,4 +1218,4 @@ cat(" MAE:", mae, "\n", "MSE:", mse, "\n",
 # Conclusion
 
 
-I would have liked to have had more time to study more algorithms, after several days cleaning data and trying to understand what would be the best way to present it, when I sit down to read about the different algorithms that exist, I realize that with xgboost or randome forest regressor could have more easily analyzed the 81 variables presented by this project. Both algorithms are very powerful.
+I would have liked to have had more time to study more algorithms, after several days cleaning data and trying to understand what would be the best way to present it, when I sit down to read about the different algorithms that exist, I realize that with xgboost or random forest regressor could have more easily analyzed the 81 variables presented by this project. Both algorithms are very powerful.

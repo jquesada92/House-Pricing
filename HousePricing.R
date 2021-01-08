@@ -1,4 +1,4 @@
-## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE--------------------------------------------------------------------------------------------------------------
+## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE------------------
 options(warn=-1)
 options(tidyverse.quiet = TRUE)
 if(!require(tidyverse, warn.conflicts = FALSE)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
@@ -16,7 +16,7 @@ if(!require(glmnet)) install.packages("glmnet")
 if(!require(randomForest)) install.packages("randomForest")
 
 
-## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE--------------------------------------------------------------------------------------------------------------
+## ---- echo=TRUE, message=FALSE, warning=FALSE, include=FALSE------------------
 library(tidyverse, warn.conflicts = FALSE)
 library(caret)
 library(data.table)
@@ -59,7 +59,7 @@ high_cor_cols<- function(df){
 }
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 read_csv <- function(file){
     path_data <- "data"
     filename <- paste(path_data,file,sep="/")
@@ -76,7 +76,7 @@ train_set<- read_csv('train.csv')
 df<- bind_rows(train_set,test_set)
 
 
-## ---- echo=FALSE,warning=FALSE,message=FALSE------------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE,warning=FALSE,message=FALSE----------------------------------
 #Train SET INFO
 colnames_trian_set<-colnames(train_set)
 memory_usage_train_set<-format(object.size(train_set),units="MB")
@@ -88,7 +88,7 @@ memory_usage_test_set<-format(object.size(test_set),units="MB")
 dim_test_set <- dim(test_set)
 
 
-## ---- echo=FALSE,  message=FALSE, warning=FALSE---------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE,  message=FALSE, warning=FALSE-------------------------------
 
 #searching for the additional column in the train set
 colname_diff <-setdiff(colnames_trian_set,colnames_test_set)
@@ -116,7 +116,7 @@ numerical_columns_tb <- matrix(numerical_columns,10,byrow=TRUE) %>%kable()%>%
   add_header_above(c("Numerical Columns"=4))
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 rm(colname_diff)
 rm(categorical_columns_tb)
 rm(numerical_columns_tb)
@@ -126,7 +126,7 @@ numerical_columns <- numerical_columns[!(numerical_columns %in% c("MSSubClass"))
 categorical_columns<-append(categorical_columns,"MSSubClass")
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 #getting percentage of null values in each column
 missing_values<- function(df){
 nan_columns <- sort(colMeans(is.na(df)))
@@ -157,7 +157,7 @@ na_numerical <- nan_summary %>% filter(type=="numerical") %>% select(name,prc_na
 
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 rm(nan_summary)
 rm(na_numerical)
 rm(na_categorical)
@@ -210,23 +210,23 @@ temp_df %>% kable()%>% pack_rows(index = table(fct_inorder(temp_df$name_features
   add_header_above(c("Related Features"=3))
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 #HERE IM STORIGN COLUMNS TO DROP 
 cols_to_Drop <- NULL
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 #Replace with Average
 z_score_lotfrtage <- (df$LotFrontage - mean(df$LotFrontage,na.rm=TRUE))/sd(df$LotFrontage,na.rm=TRUE)
 histogram(z_score_lotfrtage,main="LotFrontage Zscore")
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 filter_mean <- df %>% filter(abs(z_score_lotfrtage)<=2.5) %>% summarise(avg_=  mean(LotFrontage,na.rm=TRUE)) %>% pull(avg_)
 df$LotFrontage <- ifelse(is.na(df$LotFrontage),filter_mean ,df$LotFrontage)
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 
 QC_Cond_decoder <- function(col,No_feature){
 evaluation_quality <- data.table("quality" = c(No_feature,"Po","Fa","TA","Gd","Ex"), "score"=c(0,1,2,3,4,5))
@@ -240,7 +240,7 @@ df %>% ggplot(aes(y=PoolArea,x=as.factor(PoolQC))) + geom_boxplot()
 
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 df<- df %>% mutate(PoolQC=as.numeric(ifelse(is.na(PoolQC),5,PoolQC))) 
 missing_values(df[,grepl("Pool",names(df))])%>% kable() %>%
   kable_material(c("striped"))%>% 
@@ -248,7 +248,7 @@ missing_values(df[,grepl("Pool",names(df))])%>% kable() %>%
   add_header_above(c("Pool Missing Values"=3))
 
 
-## ---- message=FALSE, warning=FALSE, echo=FALSE----------------------------------------------------------------------------------------------------------------------------
+## ---- message=FALSE, warning=FALSE, echo=FALSE--------------------------------
 df<- df %>% mutate(MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType))
 Mas_cols <- grepl("Mas",names(df))
 MasVnr_temp <- df  %>% filter(MasVnrType!="None MasVnr")
@@ -273,7 +273,7 @@ grid.arrange(
 
 
 
-## ---- echo=FALSE, message=FALSE, warning=FALSE----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE, warning=FALSE--------------------------------
 mode_masvnr <- MasVnr_temp   %>% group_by(YearBuilt) %>% dplyr::summarise(t_mode =mode(MasVnrType))
 df<- df %>% left_join(mode_masvnr,  by="YearBuilt") %>%
   mutate(MasVnrType = ifelse(is.na(MasVnrType),t_mode,MasVnrType))%>%
@@ -285,7 +285,7 @@ missing_values(df[grepl("MasVnr",names(df))])  %>% kable()%>%
   add_header_above(c("Mansory Veneer"=3))
 
 
-## ---- warning=FALSE,message=FALSE, echo=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- warning=FALSE,message=FALSE, echo=FALSE---------------------------------
 bsmt_cols <- grepl("Bsmt",names(df))
 #Label_quality_Conditions encoder.
 bsmt_finT <- function(col,No_feature){
@@ -319,7 +319,7 @@ missing_values(df[,bsmt_cols])  %>% kable()%>%
   add_header_above(c("Mansory Veneer"=3))
 
 
-## ---- warning=FALSE,message=FALSE, echo=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- warning=FALSE,message=FALSE, echo=FALSE---------------------------------
 bsmt_cor<-cor(df[rowMeans(is.na(df[,grepl("Bsmt",names(df))]))==0,grepl("Bsmt",names(df))])
 temp <- melt(bsmt_cor) %>% filter(value>=0.5 & Var1!=Var2) %>% arrange(-value)
 temp <-  temp[seq(1,nrow(temp),2),]%>% kable()%>%
@@ -331,14 +331,14 @@ corrgram(df[rowMeans(is.na(df[,bsmt_cols]))==0,bsmt_cols],  lower.panel=panel.sh
 
 
 
-## ---- echo=FALSE,message=FALSE,warning=FALSE------------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE,message=FALSE,warning=FALSE----------------------------------
 avg_sf <- mean(df$TotalBsmtSF)
 sd_sf<- sd(df$TotalBsmtSF)
 z<- (df$TotalBsmtSF -avg_sf)/sd_sf
 histogram(z,main="TotalBsmtSF(Zscore)")
 
 
-## ---- echo=FALSE,message=FALSE,warning=FALSE------------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE,message=FALSE,warning=FALSE----------------------------------
 BsmtQual_model<- lm(BsmtQual~TotalBsmtSF,data=filter(df,abs(z)<=2.5))
 BsmtQual_pred  <- lapply(predict(BsmtQual_model,data=df,newdata=df),as.integer)
 
@@ -349,7 +349,7 @@ rm(BsmtQual_model)
 rm(BsmtQual_pred)
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 bsmtCond_mode <- mode(df$BsmtCond)
 bsmtFinF2_mode <- mode(df$BsmtFinType2)
 df<- df %>% mutate(BsmtQual=ifelse(is.na(BsmtQual),predic,BsmtQual),
@@ -361,7 +361,7 @@ missing_values(df[,bsmt_cols]) %>% kable() %>%
   kable_minimal()%>%
   add_header_above(c("Bsmt Missing Values"=3))
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 bsmt_cor <- cor_SalesPrice(df,names(df[grepl('Bsmt',names(df))]))
 bsmt_cor<-high_cor_cols(bsmt_cor)
 cols_to_Drop <- c(cols_to_Drop,names(df[,bsmt_cols&!names(df)%in% bsmt_cor$Var2]) )
@@ -371,7 +371,7 @@ bsmt_cor%>% kable() %>%
   add_header_above(c("Bsmt Columns to Keep"=3))
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 df<- df %>% mutate(Fireplaces=ifelse(is.na(Fireplaces),0,Fireplaces)) %>% 
   mutate(FireplaceQu=as.numeric(QC_Cond_decoder(ifelse(Fireplaces==0,"No_Fireplace",FireplaceQu),"No_Fireplace")))
 
@@ -381,7 +381,7 @@ missing_values(df[,grepl("Fire",names(df))]) %>% kable() %>%
   add_header_above(c("Fireplace Missing Values"=3)) 
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 temp<- melt(cor(df[rowMeans(is.na(df[,grepl("Garage",names(df))&names(df)%in%numerical_columns]))==0,grepl("Garage",names(df))&names(df)%in%numerical_columns]))%>%
   filter(Var1!=Var2)%>%
    arrange(-value)
@@ -393,11 +393,11 @@ temp[seq(1,nrow(temp),2),]%>%
 
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 df[rowMeans(is.na(df[,grepl("Garage",names(df))]))==0,grepl("Garage",names(df))] %>% ggplot(aes(x=GarageArea,y=GarageCars)) +geom_point() + geom_smooth() 
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 df<- df %>% mutate(GarageArea=ifelse(is.na(GarageArea),0,GarageArea)) %>% 
         mutate(GarageCond= ifelse(GarageArea==0,"No_Garage",GarageCond),
                GarageFinish= ifelse(GarageArea==0,"No_Garage",GarageFinish),
@@ -412,11 +412,11 @@ t(df[rowMeans(is.na(df[,grepl("Garage",names(df))]))>0,grepl("Garage",names(df))
   add_header_above(c("Garage Missing Values Escenario"=2)) 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 garage_fn <- c("No_Garage"=0,"Unf"=1,"RFn"=2,"Fin"=3)
 
 
-## ---- echo=FALSE, message=FALSE,warning=FALSE-----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, message=FALSE,warning=FALSE---------------------------------
 df[rowMeans(is.na(df[,grepl("Garage",names(df))]))>0.5,grepl("Garage",names(df))] <-0
 df<- df %>% mutate(GarageArea=ifelse(is.na(GarageArea),0,GarageArea)) %>% 
         mutate(GarageCond= as.numeric(QC_Cond_decoder(ifelse(GarageArea==0,"No_Garage",GarageCond),"No_Garage")),
@@ -431,7 +431,7 @@ missing_values(df[,grepl("Garage",names(df))]) %>% kable() %>%
   add_header_above(c("Garage Missing Values"=3)) 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 #
 #First join the feautre name with column value.
 #The used spread to transpose the cols values as new binary columns (1,0)
@@ -441,7 +441,7 @@ df<-df %>%
 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 p1 <- df %>% 
   group_by(Exterior1st) %>%
   dplyr::summarise(N=n()/nrow(df)) %>% ggplot(aes(x= Exterior1st,y=N)) +
@@ -465,7 +465,7 @@ p4 <- df %>%
 grid.arrange(p1,p2,p3,p4,ncol=4)
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 replace_exterior2 <- c("Wd Shng"="WdShing", "CmentBd"="CemntBd" ,"Brk Cmn"="BrkComm")
 #replaceing NA with mode
 df <- df%>% mutate(Exterior1st=ifelse(is.na(Exterior1st),mode(Exterior1st),Exterior1st),Exterior2nd=ifelse(is.na(Exterior2nd),mode(Exterior2nd),Exterior2nd)) %>%
@@ -474,20 +474,20 @@ df <- df%>% mutate(Exterior1st=ifelse(is.na(Exterior1st),mode(Exterior1st),Exter
 exteriors<- unique(c(unique(df$Exterior1st),unique(df$Exterior2nd)))
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 missing_values(df[,grepl("Ext",names(df))]) %>% kable() %>%
   kable_material(c("striped"))%>% 
   kable_minimal()%>%
   add_header_above(c("Exterior Missing Values"=3)) 
 
 
-## ---- warning=FALSE,message=FALSE-----------------------------------------------------------------------------------------------------------------------------------------
+## ---- warning=FALSE,message=FALSE---------------------------------------------
 evaluate_cond_qc <- c("Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
 df["ExterCond"] <- as.numeric(revalue(df$ExterCond,evaluate_cond_qc))
 df["ExterQual"] <- as.numeric(revalue(df$ExterQual,evaluate_cond_qc))
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 for (ex in exteriors){
   name_ = gsub(" ","_",sprintf("Exterior_Matertial_%s",ex))
   df[,name_] <- as.numeric(0)
@@ -498,13 +498,13 @@ for (ex in exteriors){
 df <- df%>% select(-Exterior1st,-Exterior2nd)
 
 
-## ---- echo=FALSE, warning=FALSE, message=FALSE----------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE, warning=FALSE, message=FALSE--------------------------------
 df <- df %>% mutate(MiscFeature=ifelse(MiscVal==0,"No Feature",MiscFeature))
 df %>% ggplot(aes(x=MiscFeature,y=MiscVal))+geom_point() + geom_boxplot()
 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 df <- df %>% arrange(-MiscVal) %>% fill(MiscFeature,.direction = "downup")
 missing_values(df[,grepl("Misc",names(df))]) %>% kable() %>%
   kable_material(c("striped"))%>% 
@@ -512,7 +512,11 @@ missing_values(df[,grepl("Misc",names(df))]) %>% kable() %>%
   add_header_above(c("Misc Missing Values"=3)) 
 
 
-## ----echo=FALSE,message=FALSE,warning=FALSE-------------------------------------------------------------------------------------------------------------------------------
+## ----echo=FALSE---------------------------------------------------------------
+
+
+
+## ----echo=FALSE,message=FALSE,warning=FALSE-----------------------------------
 #create to dynamically create graph counting values, as use !!as.name so that the tidyverse functions can interpret the inputs as a name. 
 graph_values<- function(df,feature){
   #Aggregate df by feature column calculate % of each value
@@ -526,8 +530,6 @@ graph_values<- function(df,feature){
 
 }
 
-
-## ---- include=FALSE ,echo=FALSE,message=FALSE,warning=FALSE---------------------------------------------------------------------------------------------------------------
 p_Mszone <- graph_values(df,"MSZoning")
 p_Alley<-graph_values(df,"Alley")
 p_Utilities <- graph_values(df,"Utilities")
@@ -541,12 +543,12 @@ p_SaleType <- graph_values(df,"SaleType")
 
 
 
-## ----echo=FALSE,message=FALSE,warning=FALSE, fig.height=  12--------------------------------------------------------------------------------------------------------------
+## ----fig.align = 'center', echo=FALSE,message=FALSE,warning=FALSE, fig.height= 7----
 p<- arrangeGrob(p_Mszone,p_Alley,p_Utilities,p_Functional,p_Fence,p_Air,p_PavedDrive,p_SaleType,p_Electrical,p_KitchenQual)
 grid.arrange(p)
 
 
-## ----  message=FALSE,warning=FALSE----------------------------------------------------------------------------------------------------------------------------------------
+## ----  message=FALSE,warning=FALSE--------------------------------------------
 
 #Fence Replace NA with No Fence and Alley with no Alley
 df <- df %>% mutate(Fence=ifelse(is.na(Fence),"No Fence",Fence),
@@ -582,34 +584,33 @@ missing_values(df)[1:4,]%>% kable() %>%
   add_header_above(c("Missing Values"=3)) 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 df$TotalBathRooms <- df$BsmtFullBath +  (df$BsmtHalfBath * 0.5) + df$FullBath + (df$HalfBath * 0.5)
-df$Second_Floor<- ifelse(df$X2ndFlrSF>0,1,0) #0=No Second Floor, 1= Second Floor
 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 df$Remod <- ifelse(df$YearBuilt==df$YearRemodAdd, 0, 1) #0=No Remodeling, 1=Remodeling
 df$Age <- as.numeric(df$YrSold)-df$YearRemodAdd
 df$New <- ifelse(df$YrSold==df$YearBuilt, 1, 0)  #0=No, 1= Yes
 
 
 cols_to_Drop <- c(cols_to_Drop,"Yrsold","MoSold","YearBuilt","Id")
+df<- df[,!names(df)%in%cols_to_Drop]
 
 
-
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 
 sf_area<- setdiff(names(df[,grep("SF|Area|SalePrice",names(df))]), cols_to_Drop)
 t(head((df[,sf_area]),10))
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 cols_to_Drop <- c(cols_to_Drop,"X1stFlrSF", "X2ndFlrSF")
-df<- df[, !names(df)%in%cols_to_Drop]
+df$Second_Floor<- ifelse(df$X2ndFlrSF>0,1,0) #0=No Second Floor, 1= Second Floor
 
 
-## ----warning=FALSE, fig.height=7,message=FALSE----------------------------------------------------------------------------------------------------------------------------
+## ----warning=FALSE, fig.height=7,message=FALSE--------------------------------
 sf_area<- setdiff(names(df[,grep("SF|Area|SalePrice",names(df))]), cols_to_Drop)
 
 graph_dist<- function(df,feature){
@@ -631,7 +632,8 @@ p10<- graph_dist(df,sf_area[10])
 p<-arrangeGrob(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10)
 grid.arrange(p)
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+## ---- echo=FALSE,warning=FALSE------------------------------------------------
 sf_area_Cor<-cor_SalesPrice(df,sf_area)
 sf_area_Cor<-high_cor_cols(sf_area_Cor)
 cols_to_Drop <- c(cols_to_Drop,names(df[,!names(df) %in% unique(sf_area_Cor$Var2) & names(df)%in%sf_area]),"X1stFlrSF")
@@ -641,7 +643,7 @@ sf_area_Cor%>% kable() %>%
   add_header_above(c("SF & Area Columns to Keep"=3))
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 sf_area
 feature <- NULL
 skew <- NULL
@@ -669,17 +671,17 @@ dist_summary %>% kable() %>%
   add_header_above(c("Missing Values"=5)) 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 qqnorm(df$SalePrice,main = "Before Log Transformation")
 qqline(df$SalePrice)
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 qqnorm(log(df$SalePrice),main = "After Log Transformation")
 qqline(log(df$SalePrice))
 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 #Selecting character columns
 categorical_columns<- colnames(df %>% select(which(sapply(.,is.character))))
 #Number of character columns
@@ -692,7 +694,7 @@ matrix(categorical_columns,9,byrow=TRUE) %>%kable()%>%
 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 #
 #First join the feautre name with column value.
 #The used spread to transpose the cols values as new binary columns (1,0)
@@ -710,10 +712,10 @@ colnames(df)<- sapply(colnames(df),function(X){gsub("\\)","",X)})
 colnames(df)<- sapply(colnames(df),function(X){gsub("\\&","",X)})
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+## -----------------------------------------------------------------------------
+set.seed(2500000)
 pre_train_set<- df[!is.na(df$SalePrice),]
-indx  <- createDataPartition(y = pre_train_set$SalePrice, times = 1, p = 0.25, list = FALSE)
+indx  <- createDataPartition(y = pre_train_set$SalePrice, times = 1, p = 0.10, list = FALSE)
 train_set<- pre_train_set[-indx,]
 X_train<- train_set[,names(train_set)!="SalePrice"]
 Y_train <- train_set$SalePrice
@@ -723,7 +725,7 @@ Y_test<- test_set$SalePrice
 
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 set.seed(250000)
 
 rf_model<-randomForest(
@@ -732,11 +734,11 @@ rf_model<-randomForest(
 
 summary(rf_model)
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 plot(rf_model)
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## ----echo=FALSE---------------------------------------------------------------
 rfImportance <- rf_model$importance
 varsSelected <- length(which(rfImportance!=0))
 varsNotSelected <- length(which(rfImportance==0))
@@ -744,7 +746,7 @@ varsNotSelected <- length(which(rfImportance==0))
 cat('Raandome Forest uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 rf_mode_pred <- predict(rf_model,X_test)
 original<- Y_test
 d = original-rf_mode_pred
@@ -758,25 +760,24 @@ cat(" MAE:", mae, "\n", "MSE:", mse, "\n",
     "RMSE:", rmse, "\n", "R-squared:", R2)
 
 
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 
 set.seed(2500000)
-cv <-trainControl(method="cv", number=15)
+cv <-trainControl(method="cv", number=10)
 lasso<- train(x= X_train
               , y= log(Y_train)
               , method='glmnet'
               , trControl= cv
-              , tuneGrid= expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))) 
+              , tuneGrid= expand.grid(alpha =  1, lambda = seq(0.001,0.1,by = 0.0005)))
 plot(lasso)
 
-
-## -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 t(lasso$bestTune %>% select(alpha,lambda))%>%kable() %>% 
   kable_styling(font_size = 10) %>%
   add_header_above(c("Parameters"=2))
 
 
-## ----echo=FALSE-----------------------------------------------------------------------------------------------------------------------------------------------------------
+## ----echo=FALSE---------------------------------------------------------------
 lassoVarImp <- varImp(lasso,scale=F)
 lassoImportance <- lassoVarImp$importance
 
@@ -786,7 +787,7 @@ varsNotSelected <- length(which(lassoImportance$Overall==0))
 cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
 
 
-## ---- echo=FALSE----------------------------------------------------------------------------------------------------------------------------------------------------------
+## ---- echo=FALSE--------------------------------------------------------------
 LassoPred <- predict(lasso, X_test)
 predictions_lasso <- exp(LassoPred) #need to reverse the log to the real values
 real<- Y_test
