@@ -2,7 +2,10 @@
 title: 'HarvardX PH125.9xData Science: Capstone Choose Your Own!(House Pricing)'
 author: "Jose Quesada"
 date: "27/12/2020"
-output: pdf_document
+output: 
+  pdf_document:
+      fig_width: 10
+      fig_height: 6
 ---
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, include=FALSE}
 options(warn=-1)
@@ -17,6 +20,9 @@ if(!require(gridExtra)) install.packages("gridExtra")
 if(!require(kableExtra)) install.packages("kableExtra")
 if(!require(corrgram)) install.packages("corrgram")
 if(!require(reshape2)) install.packages("reshape2")
+if(!require(moments)) install.packages("moments")
+if(!require(glmnet)) install.packages("glmnet")
+if(!require(randomForest)) install.packages("randomForest")
 ```
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE, include=FALSE}
@@ -31,7 +37,9 @@ library(kableExtra)
 library(plyr)
 library(corrgram)
 library(reshape2)
-
+library(moments) 
+library(glmnet)
+library(randomForest)
 options(tinytex.verbose = TRUE)
 
 #updating default size text of ggplots
@@ -48,14 +56,52 @@ options(dplyr.summarise.inform = FALSE)
 mode<- function(x){
   ux <- unique(x)
   ux[which.max(tabulate(match(x, ux)))]}
+
+
+cor_SalesPrice<- function(df,columns){
+  df_ <- df[,names(df)%in% c(columns,"SalePrice")]
+  cor(df_,use="pairwise.complete.obs")
+}
+
+high_cor_cols<- function(df){
+  melt(df) %>% filter(Var1=="SalePrice" & (round(abs(value),1)>=0.5 & Var1!=Var2)) %>% arrange(-abs(value))
+}
 ```
+
+# Executive Summary
+
+First of all, I hope that in this difficult time you and your family are well and thank you for your time to see my final task, this course I started to have a good foundation and better understand the world of data science, I apologize for me English is not my native language. I did my best, I started doing this module in mid-December and I didn't have much time to dedicate to it. This project was not easy, I chose a dataset of 81 variables
+
+
 # Introduccion 
 
 
 This project consists of determining the value of a house according to its location, property characteristics and payment methods using the data set from kaggle House Prices - Advanced Regression Techniques https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data (kaggle competitions download -c house-prices-advanced-regression-techniques).
 
+Description by Kaggle:
+
+You have some experience with R or Python and machine learning basics. This is a perfect competition for data science students who have completed an online course in machine learning and are looking to expand their skill set before trying a featured competition. 
+Competition Description
+
+Ask a home buyer to describe their dream house, and they probably won't begin with the height of the basement ceiling or the proximity to an east-west railroad. But this playground competition's dataset proves that much more influences price negotiations than the number of bedrooms or a white-picket fence.
+
+With 79 explanatory variables describing (almost) every aspect of residential homes in Ames, Iowa, this competition challenges you to predict the final price of each home.
+Practice Skills
+
+    Creative feature engineering 
+    Advanced regression techniques like random forest and gradient boosting
+
+Acknowledgments
+
+The Ames Housing dataset was compiled by Dean De Cock for use in data science education. It's an incredible alternative for data scientists looking for a modernized and expanded version of the often cited Boston Housing dataset. 
+
 
 # Importing Data.
+
+
+Data set was already divided into training and test, the training file contains an additional column that would be the sale price, while the test set does not have this column, for the purposes of this exercise we combine both data sets to avoid staying with an unknown value at the time of cleaning and pre-processing
+
+
 
 
 Files:
@@ -107,7 +153,8 @@ test_set:
 
     * Dimensions: `r toString(dim_test_set)`
     * Memory Usage: `r toString(memory_usage_test_set)`
-    
+
+
 
 ```{r, echo=FALSE,  message=FALSE, warning=FALSE}
 
@@ -126,6 +173,7 @@ categorical_columns_tb <- matrix(categorical_columns,10,byrow=TRUE) %>%kable()%>
   add_header_above(c("Categorical Columns"=5))
 
 #Selecting numeric data
+
 numerical_columns<-colnames(df %>% select(which(sapply(.,is.numeric))))
 #Number of Numeric Columns
 n_numeric_columns <- length(numerical_columns)
@@ -147,7 +195,6 @@ Total numeric columns: `r n_numeric_columns`
 
 `r numerical_columns_tb`  
   
-Im going to handle MSSubClass as categorical data although it is shown as numeric column, is actually a categorical data, the numbers is the columns are the type of dwelling involved in the sale, im removing from numeric columns and append as categorical.  
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 rm(colname_diff)
 rm(categorical_columns_tb)
@@ -157,12 +204,17 @@ numerical_columns <- numerical_columns[!(numerical_columns %in% c("MSSubClass"))
 #Append MSSubClass to categorical columns
 categorical_columns<-append(categorical_columns,"MSSubClass")
 ```
-## Missing Values
+
+## OverAll Missing Values
 For this analysis we going to select just the columns that have missing values, **if they not in plot or table its because they not have missing values**.
+Im using is.na function to detect null values, i created the fuction missing_values where the imput is a data.table, this function get the name of each column where is a least 1 null values, we donde this using colsMean(is.na(df)) and created a summary table with the percentage of null values of each column.
+
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #getting percentage of null values in each column
 missing_values<- function(df){
 nan_columns <- sort(colMeans(is.na(df)))
+categorical_columns<- colnames(df %>% select(which(sapply(.,is.character))))
+numerical_columns<-colnames(df %>% select(which(sapply(.,is.numeric))))
 nan_summary<- data.table("name"= names(nan_columns),"prc_na"=nan_columns) %>% arrange(desc(prc_na)) %>% mutate(type= ifelse(name %in% categorical_columns,"categorical","numerical"))
   nan_summary}
 nan_summary<- missing_values(df)  %>% filter(prc_na>0)
@@ -193,10 +245,33 @@ na_numerical <- nan_summary %>% filter(type=="numerical") %>% select(name,prc_na
 
   `r na_numerical`
 
-By looking in the data_description file, we can determine that we have columns that show us measurements, condition and qualities of additional features of the houses, They are defined with NA when they do not have one of them. To determine if they are really null values, we must compare multiple columns, example if we have NA PoolQC and PoolArea equal to 0 is the NA is not a Missing value, because the house doesnt have a pool, if PoolQC is NA but the PoolArea is greater than 0, we have a missing value.
-</br> 
 
-###   Identify associated columns 
+### Handling Missing Values(extract from  "https://en.wikipedia.org/wiki/Imputation_(statistics)")
+
+#### Imputation
+In statistics, imputation is the process of replacing missing data with substituted values. When substituting for a data point, it is known as "unit imputation"; when substituting for a component of a data point, it is known as "item imputation". There are three main problems that missing data causes: missing data can introduce a substantial amount of bias, make the handling and analysis of the data more arduous, and create reductions in efficiency.[1] Because missing data can create problems for analyzing data, imputation is seen as a way to avoid pitfalls involved with listwise deletion of cases that have missing values. That is to say, when one or more values are missing for a case, most statistical packages default to discarding any case that has a missing value, which may introduce bias or affect the representativeness of the results. Imputation preserves all cases by replacing missing data with an estimated value based on other available information. Once all missing values have been imputed, the data set can then be analysed using standard techniques for complete data.[2] There have been many theories embraced by scientists to account for missing data but the majority of them introduce bias. A few of the well known attempts to deal with missing data include: hot deck and cold deck imputation; listwise and pairwise deletion; mean imputation; non-negative matrix factorization;[3] regression imputation; last observation carried forward; stochastic imputation; and multiple imputation.
+
+##### Method to use.  
+</br>
+Mean substitution
+
+Another imputation technique involves replacing any missing value with the mean of that variable for all other cases, which has the benefit of not changing the sample mean for that variable. However, mean imputation attenuates any correlations involving the variable(s) that are imputed. This is because, in cases with imputation, there is guaranteed to be no relationship between the imputed variable and any other measured variables. Thus, mean imputation has some attractive properties for univariate analysis but becomes problematic for multivariate analysis.
+</br>
+
+Regression
+
+Regression imputation has the opposite problem of mean imputation. A regression model is estimated to predict observed values of a variable based on other variables, and that model is then used to impute values in cases where the value of that variable is missing. In other words, available information for complete and incomplete cases is used to predict the value of a specific variable. Fitted values from the regression model are then used to impute the missing values. The problem is that the imputed data do not have an error term included in their estimation, thus the estimates fit perfectly along the regression line without any residual variance. This causes relationships to be over identified and suggest greater precision in the imputed values than is warranted. The regression model predicts the most likely value of missing data but does not supply uncertainty about that value.
+
+Stochastic regression was a fairly successful attempt to correct the lack of an error term in regression imputation by adding the average regression variance to the regression imputations to introduce error. Stochastic regression shows much less bias than the above-mentioned techniques, but it still missed one thing – if data are imputed then intuitively one would think that more noise should be introduced to the problem than simple residual variance.[5] 
+
+</br>  
+
+  
+##    Identify associated columns by Name
+
+By looking in the data_description file, we can determine that we have columns that show us measurements, condition and qualities of additional features of the houses, They are defined with NA when they do not have one of them. To determine if they are really null values, we must compare multiple columns, example if we have NA PoolQC and PoolArea equal to 0 is the NA is not a Missing value, because the house doesnt have a pool, if PoolQC is NA but the PoolArea is greater than 0, we have a missing value.
+
+Im using key word to detect related columns, this is a manual process by looking the data_description.txt file, after this I am iterating in this list of words to detect the columns that contain this word and identifying what type of data it is (categorical or numerical), i created 3 empty variable, where im storing the result of each loop and using n as index.
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 rm(nan_summary)
 rm(na_numerical)
@@ -212,8 +287,9 @@ add_features <- c("Alley"
 ,"Fence"
 ,"Misc"
 ,"Kitchen"
-,"Exterior"
-,"Garage")
+,"Exter"
+,"Garage"
+,"Lot")
 
 
 #Create 3 empty values for save results
@@ -245,12 +321,53 @@ for ( f in add_features){
 #I created a temporal data table to display features and columns.  
 temp_df <- data.table(name_features,dim_features,dtype)
 temp_df %>% kable()%>% pack_rows(index = table(fct_inorder(temp_df$name_features) )) %>% 
-  kable_styling() %>%
+  kable_styling(font_size = 10) %>%
   add_header_above(c("Related Features"=3))
 ```
-### Pool
+## Categorical to Numerical DATA 
+*Label Encoder**: It is used to transform non-numerical labels to numerical labels (or nominal categorical variables). Numerical labels are always between 0 and n_classes-1.)
+and after we going to label encoder the column(It is used to transform non-numerical labels to numerical labels (or nominal categorical variables). Numerical labels are always between 0 and n_classes-1.).
 
-First we going to replace NA in PoolArea to 0, then im replacing PoolQC to No Pool whe Area is equal to 0 and after we going to label encoder the column(It is used to transform non-numerical labels to numerical labels (or nominal categorical variables). Numerical labels are always between 0 and n_classes-1.) 
+After read the data description file i have identify Quality and Condition columns with values:
+
+       - Ex	Excellent  (replace by: 5)
+       - Gd	Good    (replace by: 4)
+       - TA	Average (replace by: 3)
+       - Fa	Fair (replace by: 2)
+       - Po	Poor (replace by: 1)
+       - NA	No (replace by: 0)
+       
+In each variable of the data set im replacing No existance feature for the string "None" or "No" + feature Name, and giving a score from 0 to No existant to 5 for Excellent  quality or condition.
+
+###   Variables
+
+For the analysis and cleaning of the data I am going to divide into the different variables and related columns to be able to find null values ​​and be able to replace it because it is because it is a null value because it does not have the characteristic or if it really is a null value where we have to do analysis correlation and use another column to be able to replace a grouped average and replace the values ​​according to the case and try to convert the categorical data into numeric if possible, at the end of the cleaning of each variable (Pool, Basement, etc.) we will see the correlation of each column against the sale price and we will create a list of possible columns to discard for our model.
+```{r}
+#HERE IM STORIGN COLUMNS TO DROP 
+cols_to_Drop <- NULL
+```
+
+
+####    LotFrontage
+This is a numeric column im going to calculate the z_score and understan the distribution, if is highly skewed distributionswe shoul use log transform to make it  less skewed.
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+#Replace with Average
+z_score_lotfrtage <- (df$LotFrontage - mean(df$LotFrontage,na.rm=TRUE))/sd(df$LotFrontage,na.rm=TRUE)
+histogram(z_score_lotfrtage,main="LotFrontage Zscore")
+```
+
+It is not necessary to apply a logarithmic transformation to it, now we going to calculate mean with values that are between -2.5 and 2.5 from median, and replace our missing values in this column
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+filter_mean <- df %>% filter(abs(z_score_lotfrtage)<=2.5) %>% summarise(avg_=  mean(LotFrontage,na.rm=TRUE)) %>% pull(avg_)
+df$LotFrontage <- ifelse(is.na(df$LotFrontage),filter_mean ,df$LotFrontage)
+```
+
+
+####    Pool
+
+First we going to replace NA in PoolArea to 0, then im replacing PoolQC to No Pool when Area is equal to 0 .  
+
+</br>
 ```{r, echo=FALSE, message=FALSE,warning=FALSE}
 
 QC_Cond_decoder <- function(col,No_feature){
@@ -264,13 +381,10 @@ df %>% ggplot(aes(y=PoolArea,x=as.factor(PoolQC))) + geom_boxplot()
 
 
 ```
-
-
-
 Just for looking into this graph im going to fill NA with 5.
 
 ```{r, echo=FALSE, message=FALSE,warning=FALSE}
-df<- df %>% mutate(PoolQC=ifelse(is.na(PoolQC),5,PoolQC))
+df<- df %>% mutate(PoolQC=as.numeric(ifelse(is.na(PoolQC),5,PoolQC))) 
 missing_values(df[,grepl("Pool",names(df))])%>% kable() %>%
   kable_material(c("striped"))%>% 
   kable_minimal()%>%
@@ -278,35 +392,13 @@ missing_values(df[,grepl("Pool",names(df))])%>% kable() %>%
 ```
 
 
-### MiscFeatures, Alley & Fence
-
-```{r, echo=FALSE, message=FALSE,warning=FALSE}
-grid.arrange(df %>% ggplot(aes(x=MiscFeature)) + geom_bar()+labs(title="MiscFeature"),df %>% ggplot(aes(x=Alley)) + geom_bar()+labs(title="Alley"),df %>% ggplot(aes(x=Fence)) + geom_bar()+labs(title="Fence"),ncol=3
-             )
-```
-For NA in MiscFeature, its just replace by "None Feature", Alley to "No Alley" and Fence to "No Fence"
-```{r, echo=FALSE, message=FALSE,warning=FALSE}
-df <- df %>% mutate(MiscFeature=ifelse(is.na(MiscFeature),"No Feature",MiscFeature),
-                    Alley=ifelse(is.na(Alley),"No Alley",Alley),
-                    Fence=ifelse(is.na(Fence),"No Fence",Fence)
-                    )
-missing_values(df[,c("MiscFeature","Alley","Fence")])%>% kable() %>%
-  kable_material(c("striped"))%>% 
-  kable_minimal()%>%
-  add_header_above(c("MiscF, Alley & Fence Missing Values"=3))
-```
-
-
-### Masonry veneer
-
-Columns:
-
-    1. MasVnrType.
-    2. MasVnrArea.
+#### Masonry veneer.  
+</br>
+Masonry veneer walls consist of a single non-structural external layer of masonry, typically made of brick, stone or manufactured stone. Masonry veneer can have an air space behind it and is technically called "anchored veneer". A masonry veneer attached directly to the backing is called "adhered veneer". (https://en.wikipedia.org/wiki/Masonry_veneer)
 </br>    
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 df<- df %>% mutate(MasVnrType = ifelse(MasVnrArea==0|is.na(MasVnrArea), "None MasVnr",MasVnrType))
-
+Mas_cols <- grepl("Mas",names(df))
 MasVnr_temp <- df  %>% filter(MasVnrType!="None MasVnr")
 
 grid.arrange(
@@ -317,19 +409,20 @@ grid.arrange(
                     geom_boxplot() +
                     stat_summary(fun=mean,geom="point")+
                     coord_flip()
-                    ,ncol = 2, nrow = 1,top=textGrob("Mansory Veneer",gp=gpar(fontsize=20,font=3))),
-       MasVnr_temp %>% group_by(YearBuilt,MasVnrType) %>% dplyr::summarise(count_=n()) %>%
-         ggplot(aes(x=YearBuilt,y=count_,col=MasVnrType)) + 
+                    ,ncol = 2, nrow = 1,top=textGrob("Mansory Veneer",gp=gpar(fontsize=15,font=3))),
+       MasVnr_temp %>% group_by(YearRemodAdd,MasVnrType) %>% dplyr::summarise(count_=n()) %>%
+         ggplot(aes(x=YearRemodAdd,y=count_,col=MasVnrType)) + 
         geom_line()+
         theme(legend.justification = c(0,1),
               legend.position = c(0,1),
         axis.text.x = element_text(angle = 90, vjust = 0.5)) +
-        scale_x_continuous(breaks=seq(min(MasVnr_temp$YearBuilt),max(MasVnr_temp$YearBuilt),5)),
+        scale_x_continuous(breaks=seq(min(MasVnr_temp$YearRemodAdd),max(MasVnr_temp$YearRemodAdd),5)),
       heights=c(1/3, 2/3))
 
 ```
 </br>
-This plot show us between 1950 and 2005 BrkFace was the predominant type of MasVnr and after 2005 was Stone, we going to get the mode in every yearn and fill Na values with mode by year and look how many null values we get.
+At Overall we can see that break is used more than stone but the Year Vs count of each MasVnrType plot show us between 1950 and 2005 BrkFace was the predominant type of MasVnr and after 2005 was Stone, we going to get the mode in every yearn and fill Na values with mode by year and look how many null values we get.
+
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 mode_masvnr <- MasVnr_temp   %>% group_by(YearBuilt) %>% dplyr::summarise(t_mode =mode(MasVnrType))
 df<- df %>% left_join(mode_masvnr,  by="YearBuilt") %>%
@@ -341,9 +434,65 @@ missing_values(df[grepl("MasVnr",names(df))])  %>% kable()%>%
   kable_styling() %>%
   add_header_above(c("Mansory Veneer"=3))
 ```
-### Basement 
 
-First we are going to replace the null values of columns Bsmt fSF, BsmtFinSF1, BsmtFinSF2 and TotalBsmtSF, by 0. After this we are going to replace the null values of the categorical columns by "No Basement" and "No Basement 1" when BsmtFinSF1 is equal to 0 and "No Basement 2" when BsmtFinSF2 is equal to 0. After the first cleaning we are going to convert the BsmtCond columns, BsmtExposure, BsmtFinType1, BsmtFinType2 and BsmtQual, in numerical values, giving as a classification based on the descriptions that are in the file "data/data_description.txt", to be able to find correlations and finish replacing the null values in these columns, we also transform the BsmtUnfSF column into a percentage of the TotalBsmtSF.</br>
+#### Basement 
+
+BsmtQual: Evaluates the height of the basement
+
+       Ex	Excellent (100+ inches)	
+       Gd	Good (90-99 inches)
+       TA	Typical (80-89 inches)
+       Fa	Fair (70-79 inches)
+       Po	Poor (<70 inches
+       NA	No Basement
+		
+BsmtCond: Evaluates the general condition of the basement
+
+       Ex	Excellent
+       Gd	Good
+       TA	Typical - slight dampness allowed
+       Fa	Fair - dampness or some cracking or settling
+       Po	Poor - Severe cracking, settling, or wetness
+       NA	No Basement
+	
+BsmtExposure: Refers to walkout or garden level walls
+
+       Gd	Good Exposure
+       Av	Average Exposure (split levels or foyers typically score average or above)	
+       Mn	Mimimum Exposure
+       No	No Exposure
+       NA	No Basement
+	
+BsmtFinType1: Rating of basement finished area
+
+       GLQ	Good Living Quarters
+       ALQ	Average Living Quarters
+       BLQ	Below Average Living Quarters	
+       Rec	Average Rec Room
+       LwQ	Low Quality
+       Unf	Unfinshed
+       NA	No Basement
+		
+BsmtFinSF1: Type 1 finished square feet
+
+BsmtFinType2: Rating of basement finished area (if multiple types)
+
+       GLQ	Good Living Quarters
+       ALQ	Average Living Quarters
+       BLQ	Below Average Living Quarters	
+       Rec	Average Rec Room
+       LwQ	Low Quality
+       Unf	Unfinshed
+       NA	No Basement
+
+BsmtFinSF2: Type 2 finished square feet
+
+BsmtUnfSF: Unfinished square feet of basement area
+
+TotalBsmtSF: Total square feet of basement area
+
+
+First we are going to replace the null values of columns Bsmt fSF, BsmtFinSF1, BsmtFinSF2 and TotalBsmtSF, by 0. After this we are going to replace the null values of the categorical columns by "No_Basement" and "No_Basement1" when BsmtFinSF1 is equal to 0 and "No_Basement2" when BsmtFinSF2 is equal to 0. After the first cleaning we are going to convert the BsmtCond columns, BsmtExposure, BsmtFinType1, BsmtFinType2 and BsmtQual, in numerical values, giving as a classification based on the descriptions that are in the file "data/data_description.txt", to be able to find correlations and finish replacing the null values in these columns, we also transform the BsmtUnfSF column into a percentage of the TotalBsmtSF.</br>
 
 ```{r, warning=FALSE,message=FALSE, echo=FALSE}
 bsmt_cols <- grepl("Bsmt",names(df))
@@ -354,7 +503,7 @@ mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
 
 
 bsmt_Exposure <- function(col){
-evaluation_quality <- data.table("quality" = c("No Basement","No","Mn","Av","Gd"), "score"=c(0,1,2,3,4))
+evaluation_quality <- data.table("quality" = c("No_Basement","No","Mn","Av","Gd"), "score"=c(0,1,2,3,4))
 mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}
 
 df <- df %>% 
@@ -365,11 +514,11 @@ df <- df %>%
          BsmtFinSF2 = ifelse(is.na(BsmtFinSF2),0,BsmtFinSF2)
          )%>%
   mutate(
-             BsmtFinType1 = as.numeric(bsmt_finT(ifelse(BsmtFinSF1==0|is.na(BsmtFinSF1), "No Basement 1", BsmtFinType1), "No Basement 1")),
-             BsmtFinType2 = as.numeric(bsmt_finT(ifelse(BsmtFinSF2==0|is.na(BsmtFinSF2), "No Basement 2", BsmtFinType2), "No Basement 2")),
-             BsmtCond = as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtCond),"No Basement")),
-             BsmtQual =  as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF+BsmtUnfSF==0, "No Basement", BsmtQual),"No Basement")),
-             BsmtExposure =  as.numeric(bsmt_Exposure(ifelse(TotalBsmtSF==0, "No Basement", BsmtExposure))),
+             BsmtFinType1 = as.numeric(bsmt_finT(ifelse(BsmtFinSF1==0|is.na(BsmtFinSF1), "No_Basement1", BsmtFinType1), "No_Basement1")),
+             BsmtFinType2 = as.numeric(bsmt_finT(ifelse(BsmtFinSF2==0|is.na(BsmtFinSF2), "No_Basement2", BsmtFinType2), "No_Basement2")),
+             BsmtCond = as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF==0, "No_Basement", BsmtCond),"No_Basement")),
+             BsmtQual =  as.numeric(QC_Cond_decoder(ifelse(TotalBsmtSF==0, "No_Basement", BsmtQual),"No_Basement")),
+             BsmtExposure =  as.numeric(bsmt_Exposure(ifelse(TotalBsmtSF==0, "No_Basement", BsmtExposure))),
              BsmtFullBath = ifelse(TotalBsmtSF==0, 0, BsmtFullBath),
              BsmtHalfBath = ifelse(TotalBsmtSF==0, 0, BsmtHalfBath))
 
@@ -406,11 +555,11 @@ histogram(z,main="TotalBsmtSF(Zscore)")
 For this model I am going to remove all the TotalBsmtSF that are at least 2.5 z score absolute from the average, this represents `r 100 * nrow(filter(df,abs(z)<2.5))/nrow(df)` percent of the data.
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
-BsmtQual_model<- lm(BsmtQual~TotalBsmtSF,data=filter(df,abs(z)<2.5))
+BsmtQual_model<- lm(BsmtQual~TotalBsmtSF,data=filter(df,abs(z)<=2.5))
 BsmtQual_pred  <- lapply(predict(BsmtQual_model,data=df,newdata=df),as.integer)
 
 df<- df %>% mutate(predic=as.integer(predict(lm(BsmtQual~TotalBsmtSF,data=.),newdata=.))) %>% mutate(SE_= (BsmtQual-predic)^2)
-df %>% filter(abs(z)<2.5) %>%ggplot(aes(x=TotalBsmtSF,y=BsmtQual)) + geom_point() + geom_smooth() + labs(title="BsmtQual Vs TotalBsmtSF")
+df %>% filter(abs(z)<=2.5) %>%ggplot(aes(x=TotalBsmtSF,y=BsmtQual)) + geom_point() + geom_smooth() + labs(title="BsmtQual Vs TotalBsmtSF")
 
 rm(BsmtQual_model)
 rm(BsmtQual_pred)
@@ -432,17 +581,643 @@ missing_values(df[,bsmt_cols]) %>% kable() %>%
   kable_minimal()%>%
   add_header_above(c("Bsmt Missing Values"=3))
 ```
-### Fireplace
-Im using similar approach as Pool NA's, if Fireplaces =0 the FireplaceQu = "No Fireplace"
+```{r}
+bsmt_cor <- cor_SalesPrice(df,names(df[grepl('Bsmt',names(df))]))
+bsmt_cor<-high_cor_cols(bsmt_cor)
+cols_to_Drop <- c(cols_to_Drop,names(df[,bsmt_cols&!names(df)%in% bsmt_cor$Var2]) )
+bsmt_cor%>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Bsmt Columns to Keep"=3))
+```
+
+
+#### Fireplace
+
+Fireplaces: Number of fireplaces
+
+FireplaceQu: Fireplace quality
+
+       Ex	Excellent - Exceptional Masonry Fireplace
+       Gd	Good - Masonry Fireplace in main level
+       TA	Average - Prefabricated Fireplace in main living area or Masonry Fireplace in basement
+       Fa	Fair - Prefabricated Fireplace in basement
+       Po	Poor - Ben Franklin Stove
+       NA	No Fireplace
+       
+Im using similar approach as Pool NA's, if Fireplaces =0 the FireplaceQu = "No_Fireplace"
 ```{r, echo=FALSE, message=FALSE,warning=FALSE}
-df<- df %>% mutate(Fireplaces=ifelse(is.na(Fireplaces),0,Fireplaces)) %>% mutate(FireplaceQu=QC_Cond_decoder(ifelse(Fireplaces==0,"No Fireplace",FireplaceQu),"No Fireplace"))
+df<- df %>% mutate(Fireplaces=ifelse(is.na(Fireplaces),0,Fireplaces)) %>% 
+  mutate(FireplaceQu=as.numeric(QC_Cond_decoder(ifelse(Fireplaces==0,"No_Fireplace",FireplaceQu),"No_Fireplace")))
+
 missing_values(df[,grepl("Fire",names(df))]) %>% kable() %>%
   kable_material(c("striped"))%>% 
   kable_minimal()%>%
   add_header_above(c("Fireplace Missing Values"=3)) 
 ```
 
-### Garage
+#### Garage
+		
+GarageType: Garage location
+		
+       2Types	More than one type of garage
+       Attchd	Attached to home
+       Basment	Basement Garage
+       BuiltIn	Built-In (Garage part of house - typically has room above garage)
+       CarPort	Car Port
+       Detchd	Detached from home
+       NA	No Garage
+		
+GarageYrBlt: Year garage was built
+		
+GarageFinish: Interior finish of the garage
+
+       Fin	Finished -> 3
+       RFn	Rough Finished ->2	
+       Unf	Unfinished -> 1
+       NA	No Garage -> 0
+		
+GarageCars: Size of garage in car capacity
+
+GarageArea: Size of garage in square feet
+
+GarageQual: Garage quality
+
+       Ex	Excellent ->5
+       Gd	Good -> 4
+       TA	Typical/Average ->3
+       Fa	Fair -> 2
+       Po	Poor ->1
+       NA	No Garage ->0
+		
+GarageCond: Garage condition
+
+      Ex	Excellent ->5
+       Gd	Good -> 4
+       TA	Typical/Average ->3
+       Fa	Fair -> 2
+       Po	Poor ->1
+       NA	No Garage ->0
+       
+First im looking the correlation between numerical columns and ploting by GarageType.
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+temp<- melt(cor(df[rowMeans(is.na(df[,grepl("Garage",names(df))&names(df)%in%numerical_columns]))==0,grepl("Garage",names(df))&names(df)%in%numerical_columns]))%>%
+  filter(Var1!=Var2)%>%
+   arrange(-value)
+temp[seq(1,nrow(temp),2),]%>%
+  kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Garage (Numerical Columns Corr)"=4))
+
+```
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+df[rowMeans(is.na(df[,grepl("Garage",names(df))]))==0,grepl("Garage",names(df))] %>% ggplot(aes(x=GarageArea,y=GarageCars)) +geom_point() + geom_smooth() 
+```
+There clearly a postive correlation between Area and number of cars, im replaceing nan values in Garage to 0, when Garage Area is equal to 0, im replaced every Garage categorical column to "No_Garage" and GarageYrBlt to 0
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+df<- df %>% mutate(GarageArea=ifelse(is.na(GarageArea),0,GarageArea)) %>% 
+        mutate(GarageCond= ifelse(GarageArea==0,"No_Garage",GarageCond),
+               GarageFinish= ifelse(GarageArea==0,"No_Garage",GarageFinish),
+               GarageQual= ifelse(GarageArea==0,"No_Garage",GarageQual),
+               GarageType = ifelse(GarageArea==0,"No_Garage",GarageType),
+               GarageYrBlt =ifelse(GarageArea==0,0,GarageYrBlt),
+               GarageCars=ifelse(GarageArea==0,0,GarageCars))
+
+t(df[rowMeans(is.na(df[,grepl("Garage",names(df))]))>0,grepl("Garage",names(df))]) %>% kable()  %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Garage Missing Values Escenario"=2)) 
+```
+By looking to the Garage columns after the first cleaning try, this table show us there still one row with NA values, im going to replace numerical column to 0 when more than 50% of the row has null values, and repet the same logic as before, replace every categorical to "No_Garage" and 0 in every numerical column where Area is equal to 0.
+
+After replacing null Values i replaced quality and condition columns with numerical data using QC_Con_decoder.
+
+```{r}
+garage_fn <- c("No_Garage"=0,"Unf"=1,"RFn"=2,"Fin"=3)
+```
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+df[rowMeans(is.na(df[,grepl("Garage",names(df))]))>0.5,grepl("Garage",names(df))] <-0
+df<- df %>% mutate(GarageArea=ifelse(is.na(GarageArea),0,GarageArea)) %>% 
+        mutate(GarageCond= as.numeric(QC_Cond_decoder(ifelse(GarageArea==0,"No_Garage",GarageCond),"No_Garage")),
+               GarageFinish=as.numeric(revalue(ifelse(GarageArea==0,"No_Garage",GarageFinish),garage_fn)),
+               GarageQual= as.numeric(QC_Cond_decoder(ifelse(GarageArea==0,"No_Garage",GarageQual),"No_Garage")),
+               GarageType = ifelse(GarageArea==0,"No_Garage",GarageType),
+               GarageYrBlt =ifelse(GarageArea==0,0,GarageYrBlt),
+               GarageCars=ifelse(GarageArea==0,0,GarageCars))
+missing_values(df[,grepl("Garage",names(df))]) %>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Garage Missing Values"=3)) 
+```
+
+Now im transforming GarageType to a Dummy Varibale.
+Dummy variables (or binary variables) are commonly used in statistical analyses and in more simple descriptive statistics. A dummy column is one which has a value of one when a categorical event occurs and a zero when it doesn’t occur. In most cases this is a feature of the event/person/object being described.
+```{r}
+#
+#First join the feautre name with column value.
+#The used spread to transpose the cols values as new binary columns (1,0)
+df<-df %>%
+  mutate(v = 1, GarageType=gsub(" ","_",paste0("Garage_",GarageType))) %>% 
+    spread(GarageType, v, fill = 0)
+
+```
+
+
+</br>
+#### Exteriors
+
+```{r}
+p1 <- df %>% 
+  group_by(Exterior1st) %>%
+  dplyr::summarise(N=n()/nrow(df)) %>% ggplot(aes(x= Exterior1st,y=N)) +
+  geom_bar(stat="identity") + 
+  labs(title="Exterior1st")+ coord_flip()
+p2 <- df %>% 
+  group_by(Exterior2nd) %>%
+  dplyr::summarise(N=n()/nrow(df)) %>% ggplot(aes(x= Exterior2nd,y=N)) +
+  geom_bar(stat="identity") + 
+  labs(title="Exterior2nd")+ coord_flip()
+p3 <- df %>% 
+  group_by(ExterQual) %>%
+  dplyr::summarise(N=n()/nrow(df)) %>% ggplot(aes(x= ExterQual,y=N)) +
+  geom_bar(stat="identity") + 
+  labs(title="ExterQual")+ coord_flip()
+p4 <- df %>% 
+  group_by(ExterCond ) %>%
+  dplyr::summarise(N=n()/nrow(df)) %>% ggplot(aes(x= ExterCond ,y=N)) +
+  geom_bar(stat="identity") + 
+  labs(title="ExterCond")+ coord_flip()
+grid.arrange(p1,p2,p3,p4,ncol=4)
+```
+It seems that both columns have the same values ​​except for a few values ​​that we can assume are misspelled, I am going to replace the data in the Exterior2nd column with the Exterior1st column
+`r setdiff(unique(df$Exterior1st),unique(df$Exterior2nd))`
+
+```{r}
+replace_exterior2 <- c("Wd Shng"="WdShing", "CmentBd"="CemntBd" ,"Brk Cmn"="BrkComm")
+#replaceing NA with mode
+df <- df%>% mutate(Exterior1st=ifelse(is.na(Exterior1st),mode(Exterior1st),Exterior1st),Exterior2nd=ifelse(is.na(Exterior2nd),mode(Exterior2nd),Exterior2nd)) %>%
+  mutate(Exterior2nd=revalue(Exterior2nd,replace_exterior2))
+#unique values between Exterior1st and Exterior2nd
+exteriors<- unique(c(unique(df$Exterior1st),unique(df$Exterior2nd)))
+```
+There is a `r 100 * nrow(filter(df,Exterior1st==Exterior2nd))/nrow(df)`% where Exterior1st and Exterior2nd are same.
+Exterior Materials = `r exteriors`
+
+```{r}
+missing_values(df[,grepl("Ext",names(df))]) %>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Exterior Missing Values"=3)) 
+```
+EXterior Categorical values 1st im going to transform ExterQual & ExterCond to numeric
+```{r, warning=FALSE,message=FALSE }
+evaluate_cond_qc <- c("Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+df["ExterCond"] <- as.numeric(revalue(df$ExterCond,evaluate_cond_qc))
+df["ExterQual"] <- as.numeric(revalue(df$ExterQual,evaluate_cond_qc))
+```
+Making exterior materials as dummy variable, we going to make a loop trought unique values between Exterior1st and Exterior2nd columns
+```{r}
+for (ex in exteriors){
+  name_ = gsub(" ","_",sprintf("Exterior_Matertial_%s",ex))
+  df[,name_] <- as.numeric(0)
+  df[df$Exterior1st==ex,name_]<-1
+  df[df$Exterior1st!=ex,name_]<-0
+
+}
+df <- df%>% select(-Exterior1st,-Exterior2nd)
+```
+
+
+#### MiscFeature
+</br>
+MiscFeature: Miscellaneous feature not covered in other categories
+		
+       Elev	Elevator
+       Gar2	2nd Garage (if not described in garage section)
+       Othr	Other
+       Shed	Shed (over 100 SF)
+       TenC	Tennis Court
+       NA	None
+		
+MiscVal: $Value of miscellaneous feature
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+df <- df %>% mutate(MiscFeature=ifelse(MiscVal==0,"No Feature",MiscFeature))
+df %>% ggplot(aes(x=MiscFeature,y=MiscVal))+geom_point() + geom_boxplot()
+
+```
+In this case im using fill  function from tidyverse fill(MiscFeature,.direction = "downup"), im sorting by descreasing Miscval and fill down miscfeature, by setting .direction to "downup" if the previous values is NULL it going to fill with the next  one.
+
+```{r}
+df <- df %>% arrange(-MiscVal) %>% fill(MiscFeature,.direction = "downup")
+missing_values(df[,grepl("Misc",names(df))]) %>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Misc Missing Values"=3)) 
+```
+
+
+#### Other Columns  
+</br>
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#create to dynamically create graph counting values, as use !!as.name so that the tidyverse functions can interpret the inputs as a name. 
+graph_values<- function(df,feature){
+  #Aggregate df by feature column calculate % of each value
+  agg_df <- df %>% 
+    group_by(!!as.name(feature)) %>%
+    dplyr::summarise(N=n()/nrow(df))
+  #Barplot get most frequent value
+  p <-  agg_df %>% ggplot(aes(x= !!as.name(feature),y=N)) +
+    geom_bar(stat="identity") + 
+    labs(title=feature)+ coord_flip()
+
+}
+```
+
+
+```{r, include=FALSE ,echo=FALSE,message=FALSE,warning=FALSE}
+p_Mszone <- graph_values(df,"MSZoning")
+p_Alley<-graph_values(df,"Alley")
+p_Utilities <- graph_values(df,"Utilities")
+p_Functional <- graph_values(df,"Functional")
+p_Fence <- graph_values(df,"Fence")
+p_Air <- graph_values(df,"CentralAir")
+p_PavedDrive <- graph_values(df,"PavedDrive")
+p_KitchenQual <- graph_values(df,"KitchenQual")
+p_Electrical <- graph_values(df,"Electrical")
+p_SaleType <- graph_values(df,"SaleType")
+
+```
+</br>
+```{r,echo=FALSE,message=FALSE,warning=FALSE, fig.height=  12}
+p<- arrangeGrob(p_Mszone,p_Alley,p_Utilities,p_Functional,p_Fence,p_Air,p_PavedDrive,p_SaleType,p_Electrical,p_KitchenQual)
+grid.arrange(p)
+```
+
+```{r,  message=FALSE,warning=FALSE}
+
+#Fence Replace NA with No Fence and Alley with no Alley
+df <- df %>% mutate(Fence=ifelse(is.na(Fence),"No Fence",Fence),
+                    Alley=ifelse(is.na(Alley),"No Alley",Alley))
+#Fence Replace NA with No Fence
+df <- df %>% mutate(Fence=ifelse(is.na(Fence),"No Fence",Fence))
+
+#Replace NA with mode
+df$Functional <- ifelse(is.na(df$Functional),mode(df$Functional),df$Functional)
+df$Utilities <- ifelse(is.na(df$Utilities),mode(df$Utilities),df$Utilities)
+df$MSZoning <- ifelse(is.na(df$MSZoning),mode(df$MSZoning),df$MSZoning)
+df$KitchenQual <- ifelse(is.na(df$KitchenQual),mode(df$KitchenQual),df$KitchenQual)
+df$SaleType <- ifelse(is.na(df$SaleType),mode(df$SaleType),df$SaleType)
+df$Electrical <- ifelse(is.na(df$Electrical),mode(df$Electrical),df$Electrical)
+
+
+privacy_levels <- c("No Fence"=0,"MnWw"=1,"GdWo"=2,"MnPrv"=3,"GdPrv"=4)
+#Encode Label
+df$Fence= as.numeric(revalue(df$Fence,privacy_levels))
+
+evaluate_cond_qc <- c("Po"=1,"Fa"=2,"TA"=3,"Gd"=4,"Ex"=5)
+df["KitchenQual"] <- as.numeric(revalue(df$KitchenQual,evaluate_cond_qc))
+df["HeatingQC"] <- as.numeric(revalue(df$HeatingQC,evaluate_cond_qc))
+#CentraL Air(Y/N)
+df$CentralAir <- as.numeric(ifelse(df$CentralAir=="Y",1,0))
+
+#PAvedDrive Encoding
+df$PavedDrive <- as.numeric(revalue(df$PavedDrive,c("N"=0,"P"=1,"Y"=2)))
+
+missing_values(df)[1:4,]%>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Missing Values"=3)) 
+```
+DATA CLEANING DONE!!!!!
+
+## Adding New Columns
+
+
+### Infrastructure
+I will create a column that totals the bathrooms in the house, another that says if it has a second floor.
+```{r}
+df$TotalBathRooms <- df$BsmtFullBath +  (df$BsmtHalfBath * 0.5) + df$FullBath + (df$HalfBath * 0.5)
+df$Second_Floor<- ifelse(df$X2ndFlrSF>0,1,0) #0=No Second Floor, 1= Second Floor
+
+```
+
+###    Age
+For purposes of age I will use the year of remodeling against the year of sale, and I will also create a variable that says if it was remodeled or not. In general, the entire infrastructure is not renewed
+
+```{r}
+df$Remod <- ifelse(df$YearBuilt==df$YearRemodAdd, 0, 1) #0=No Remodeling, 1=Remodeling
+df$Age <- as.numeric(df$YrSold)-df$YearRemodAdd
+df$New <- ifelse(df$YrSold==df$YearBuilt, 1, 0)  #0=No, 1= Yes
+
+
+cols_to_Drop <- c(cols_to_Drop,"Yrsold","MoSold","YearBuilt","Id")
+
+```
+
+## PreProcessing SalesPrice, Squeare Feet & Area Columns
+```{r}
+
+sf_area<- setdiff(names(df[,grep("SF|Area|SalePrice",names(df))]), cols_to_Drop)
+t(head((df[,sf_area]),10))
+```
+By Looking in the top 10 row of the dataset, it seems that GrLivArea is the sum of X1stFlrSF and X2ndFlrSF
+`r 100*round(nrow(df %>% filter(GrLivArea == (X1stFlrSF+X2ndFlrSF)))/nrow(df))`% of the time this happens, i going to append X1stFlrSF and X2ndFlrSF to our list of columnst to drop and add a new columns that show if the house have a second floord.
+```{r}
+cols_to_Drop <- c(cols_to_Drop,"X1stFlrSF", "X2ndFlrSF")
+df<- df[, !names(df)%in%cols_to_Drop]
+```
+
+
+```{r,warning=FALSE, fig.height=7,message=FALSE}
+sf_area<- setdiff(names(df[,grep("SF|Area|SalePrice",names(df))]), cols_to_Drop)
+
+graph_dist<- function(df,feature){
+  
+  p <-  df %>% filter(!!as.name(feature)>0)%>% ggplot(aes(x= !!as.name(feature))) +
+    geom_histogram() +
+    labs(title=feature)
+  p}
+p1<- graph_dist(df,sf_area[1])
+p2<- graph_dist(df,sf_area[2])
+p3<- graph_dist(df,sf_area[3])
+p4<- graph_dist(df,sf_area[4])
+p5<- graph_dist(df,sf_area[5])
+p6<- graph_dist(df,sf_area[6])
+p7<- graph_dist(df,sf_area[7])
+p8<- graph_dist(df,sf_area[8])
+p9<- graph_dist(df,sf_area[9])
+p10<- graph_dist(df,sf_area[10])
+p<-arrangeGrob(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10)
+grid.arrange(p)
+```
+```{r}
+sf_area_Cor<-cor_SalesPrice(df,sf_area)
+sf_area_Cor<-high_cor_cols(sf_area_Cor)
+cols_to_Drop <- c(cols_to_Drop,names(df[,!names(df) %in% unique(sf_area_Cor$Var2) & names(df)%in%sf_area]),"X1stFlrSF")
+sf_area_Cor%>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("SF & Area Columns to Keep"=3))
+```
+
+
+To support the histograms in this section, I will calculate the skewness and kurtosis, if the absolute value of the skewness is greater than one we will perform a logarithmic transformation
+```{r}
+sf_area
+feature <- NULL
+skew <- NULL
+kurt_<-NULL
+mean_ <- NULL
+median_ <- NULL
+n<-0
+for(col in sf_area){
+  cat(col)
+  df_ = df
+  if(col=="SalePrice"){
+    df_ = df %>% filter(!is.na(SalePrice))
+  }
+  n=1+n
+  feature[n]<- col
+  skew[n]<- skewness(df_[,col])
+  kurt_[n]<- kurtosis(df_[,col])
+  mean_[n]<-mean(df_[,col])
+  median_[n]<-median(df_[,col])
+}
+dist_summary <-data.table(feature,skew,kurt_,mean_,median_)
+dist_summary %>% kable() %>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()%>%
+  add_header_above(c("Missing Values"=5)) 
+```
+So, when is the skewness too much?
+
+The rule of thumb seems to be:
+
+    If the skewness is between -0.5 and 0.5, the data are fairly symmetrical.
+    If the skewness is between -1 and -0.5(negatively skewed) or between 0.5 and 1(positively skewed), the data are moderately skewed.
+    If the skewness is less than -1(negatively skewed) or greater than 1(positively skewed), the data are highly skewed.
+    
+  
+```{r}
+qqnorm(df$SalePrice,main = "Before Log Transformation")
+qqline(df$SalePrice)
+```
+```{r}
+df$SalePrice <- log(df$SalePrice)
+qqnorm(df$SalePrice,main = "After Log Transformation")
+qqline(df$SalePrice)
+
+```
+
+###    Leftover categorical data  
+
+
+```{r}
+#Selecting character columns
+categorical_columns<- colnames(df %>% select(which(sapply(.,is.character))))
+#Number of character columns
+n_cat_cols <- length(categorical_columns)
+#Display character columns in table
+
+matrix(categorical_columns,9,byrow=TRUE) %>%kable()%>%
+  kable_material(c("striped"))%>% 
+  kable_minimal()
+
+```
+
+
+One-hot encoding is the process of converting a categorical variable with multiple categories into multiple variables, each with a value of 1 or 0.
+
+```{r}
+#
+#First join the feautre name with column value.
+#The used spread to transpose the cols values as new binary columns (1,0)
+column_dummy_name <- function(x,colname_){
+   gsub(" ","_",paste(colname_,x,sep="_"))
+  
+}
+
+for(col in categorical_columns){
+  df[col] <-apply(df[col],2,FUN=column_dummy_name,colname_=col)
+  df<-df %>% mutate(v = 1) %>% 
+  spread(!!as.name(col), v, fill = 0)} 
+colnames(df)<- sapply(colnames(df),function(X){gsub("\\(","",X)})
+colnames(df)<- sapply(colnames(df),function(X){gsub("\\)","",X)})
+colnames(df)<- sapply(colnames(df),function(X){gsub("\\&","",X)})
+```
+
+
+# Model
+
+## Spliting the Data set
+
+Data set was already divided into training and test, the training file contains an additional column that would be the sale price, while the test set does not have this column, for the purposes of this exercise we combine both data sets to avoid staying with an unknown value at the time of cleaning and pre-processing.
+
+For validate the training model I have splited it into 25% for testing and 75% for training
 
 
 
+```{r}
+
+pre_train_set<- df[!is.na(df$SalePrice),]
+indx  <- createDataPartition(y = pre_train_set$SalePrice, times = 1, p = 0.25, list = FALSE)
+train_set<- pre_train_set[-indx,]
+X_train<- train_set[,names(train_set)!="SalePrice"]
+Y_train <- train_set$SalePrice
+test_set<- pre_train_set[indx,]
+X_test<- test_set[,names(train_set)!="SalePrice"]
+Y_test<- test_set$SalePrice
+
+```
+
+`r nrow(train_set)`
+`r nrow(test_set)`
+
+## Lasso Regression
+Multiple linear regression is a statistical method that attempts to model the relationship between a continuous variable and two or more independent variables by fitting a linear equation. Three of the limitations that appear in practice when trying to use this type of model (adjusted by ordinary least squares) are:
+
+    They are adversely affected by the incorporation of correlated predictors.
+
+    They do not select predictors, all predictors are incorporated into the model even if they do not provide relevant information. This often complicates the interpretation of the model and reduces its predictive ability. There are other models such as random forest or gradient boosting that are capable of selecting predictors.
+
+    They cannot be adjusted when the number of predictors is greater than the number of observations.
+
+Some of the strategies that can be applied to mitigate the impact of these problems are:
+
+    Subset selection: use an iterative process that discards the least relevant predictors.
+
+    Ridge, Lasso or Elastic Net regularization: these methods force the coefficients of the model to tend to zero, thus minimizing the risk of overfitting, reducing variance, attenuating the effect of the correlation between predictors and reducing the influence on the model of the least predictors. relevant.
+
+    Dimensionality reduction: they create a reduced number of new predictors (components) from linear or non-linear combinations of the original variables and fit the model with them.
+
+```{r}
+
+set.seed(250000)
+cv <-trainControl(method="cv", number=15)
+lasso<- train(x= X_train
+              , y= Y_train
+              , method='glmnet'
+              , trControl= cv
+              , tuneGrid= expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))) 
+plot(lasso)
+
+```
+```{r}
+t(lasso$bestTune %>% select(alpha,lambda))%>%kable() %>% 
+  kable_styling(font_size = 10) %>%
+  add_header_above(c("Parameters"=2))
+```
+
+
+```{r ,echo=FALSE}
+lassoVarImp <- varImp(lasso,scale=F)
+lassoImportance <- lassoVarImp$importance
+
+varsSelected <- length(which(lassoImportance$Overall!=0))
+varsNotSelected <- length(which(lassoImportance$Overall==0))
+
+cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
+```
+
+```{r, echo=FALSE}
+LassoPred <- predict(lasso, X_test)
+predictions_lasso <- exp(LassoPred) #need to reverse the log to the real values
+real<-exp(Y_test)
+d = real-predictions_lasso
+mse = mean((d)^2)
+mae = mean(abs(d))
+rmse = sqrt(mse)
+R2 = 1-(sum((d)^2)/sum((real-mean(real))^2))
+
+cat(" MAE:", mae, "\n", "MSE:", mse, "\n", 
+
+    "RMSE:", rmse, "\n", "R-squared:", R2)
+```
+
+## 
+
+
+The basic algorithm for a regression random forest can be generalized to the following:
+
+1.  Given training data set
+2.  Select number of trees to build (ntrees)
+3.  for i = 1 to ntrees do
+4.  |  Generate a bootstrap sample of the original data
+5.  |  Grow a regression tree to the bootstrapped data
+6.  |  for each split do
+7.  |  | Select m variables at random from all p variables
+8.  |  | Pick the best variable/split-point among the m
+9.  |  | Split the node into two child nodes
+10. |  end
+11. | Use typical tree model stopping criteria to determine when a tree is complete (but do not prune)
+12. end
+
+
+Advantages & Disadvantages
+
+Advantages:
+
+    Typically have very good performance
+    Remarkably good “out-of-the box” - very little tuning required
+    Built-in validation set - don’t need to sacrifice data for extra validation
+    No pre-processing required
+    Robust to outliers
+
+Disadvantages:
+
+    Can become slow on large data sets
+    Although accurate, often cannot compete with advanced boosting algorithms
+    Less interpretable
+    
+randomForest also allows us to use a validation set to measure predictive accuracy if we did not want to use the OOB samples. Here we split our training set further to create a training and validation set. We then supply the validation data in the xtest and ytest arguments.
+```{r}
+set.seed(2000)
+
+rf_model<-randomForest(
+  formula = SalePrice ~ .,
+  data    = train_set)
+
+summary(rf_model)
+```
+```{r}
+plot(rf_model)
+```
+
+number of trees with lowest MSE `r which.min(rf_model$mse)`
+RMSE of this optimal random forest: `r sqrt(rf_model$mse[which.min(rf_model$mse)])`
+
+```{r}
+rfImportance <- rf_model$importance
+varsSelected <- length(which(rfImportance!=0))
+varsNotSelected <- length(which(rfImportance==0))
+
+cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
+```
+
+```{r}
+rf_mode_pred <- exp(predict(rf_model,X_test))
+original<- exp(Y_test)
+d = original-rf_mode_pred
+mse = mean((d)^2)
+mae = mean(abs(d))
+rmse = sqrt(mse)
+R2 = 1-(sum((d)^2)/sum((original-mean(original))^2))
+
+cat(" MAE:", mae, "\n", "MSE:", mse, "\n", 
+
+    "RMSE:", rmse, "\n", "R-squared:", R2)
+```
+
+# Conclusion
+
+
+I would have liked to have had more time to study more algorithms, after several days cleaning data and trying to understand what would be the best way to present it, when I sit down to read about the different algorithms that exist, I realize that with xgboost or randome forest regressor could have more easily analyzed the 81 variables presented by this project. Both algorithms are very powerful.
