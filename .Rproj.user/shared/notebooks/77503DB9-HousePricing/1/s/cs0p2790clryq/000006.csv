@@ -1,4 +1,0 @@
-"0","#Remove MSSubClass from numeric columns"
-"0","numerical_columns <- numerical_columns[!(numerical_columns %in% c(""MSSubClass""))]"
-"0","#Append MSSubClass to categorical columns"
-"0","categorical_columns<-append(categorical_columns,""MSSubClass"")"
