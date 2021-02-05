@@ -1,0 +1,8 @@
+"0","for (ex in exteriors){"
+"0","  name_ = gsub("" "",""_"",sprintf(""Exterior_Matertial_%s"",ex))"
+"0","  df[,name_] <- as.numeric(0)"
+"0","  df[df$Exterior1st==ex,name_]<-1"
+"0","  df[df$Exterior1st!=ex,name_]<-0"
+"0",""
+"0","}"
+"0","df <- df%>% select(-Exterior1st,-Exterior2nd)"

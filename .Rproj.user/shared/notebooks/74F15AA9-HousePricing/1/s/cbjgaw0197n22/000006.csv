@@ -1,0 +1,5 @@
+"0","BsmtQual_model<- lm(BsmtQual~TotalBsmtSF,data=filter(df,abs(z)<=2.5))"
+"0","BsmtQual_pred  <- lapply(predict(BsmtQual_model,data=df,newdata=df),as.integer)"
+"0",""
+"0","df<- df %>% mutate(predic=as.integer(predict(lm(BsmtQual~TotalBsmtSF,data=.),newdata=.))) %>% mutate(SE_= (BsmtQual-predic)^2)"
+"0","df %>% filter(abs(z)<=2.5) %>%ggplot(aes(x=TotalBsmtSF,y=BsmtQual)) + geom_point() + geom_smooth() + labs(title=""BsmtQual Vs TotalBsmtSF"")"

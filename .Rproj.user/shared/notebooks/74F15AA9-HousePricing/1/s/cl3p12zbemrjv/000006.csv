@@ -1,0 +1,7 @@
+"0","bsmt_cor <- cor_SalesPrice(df,names(df[grepl('Bsmt',names(df))]))"
+"0","bsmt_cor<-high_cor_cols(bsmt_cor)"
+"0","cols_to_Drop <- c(cols_to_Drop,names(df[,bsmt_cols&!names(df)%in% bsmt_cor$Var2]) )"
+"0","bsmt_cor%>% kable() %>%"
+"0","  kable_material(c(""striped""))%>% "
+"0","  kable_minimal()%>%"
+"0","  add_header_above(c(""Bsmt Columns to Keep""=3))"

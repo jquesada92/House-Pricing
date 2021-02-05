@@ -1,0 +1,2 @@
+"0","filter_mean <- df %>% filter(abs(z_score_lotfrtage)<=2.5) %>% summarise(avg_=  mean(LotFrontage,na.rm=TRUE)) %>% pull(avg_)"
+"0","df$LotFrontage <- ifelse(is.na(df$LotFrontage),filter_mean ,df$LotFrontage)"

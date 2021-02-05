@@ -1,0 +1,3 @@
+"0","t(lasso$bestTune %>% select(alpha,lambda))%>%kable() %>% "
+"0","  kable_styling(font_size = 10) %>%"
+"0","  add_header_above(c(""Parameters""=2))"

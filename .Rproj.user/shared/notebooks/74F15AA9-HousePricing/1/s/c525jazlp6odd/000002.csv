@@ -1,0 +1,7 @@
+"0","#"
+"0","#First join the feautre name with column value."
+"0","#The used spread to transpose the cols values as new binary columns (1,0)"
+"0","df<-df %>%"
+"0","  mutate(v = 1, GarageType=gsub("" "",""_"",paste0(""Garage_"",GarageType))) %>% "
+"0","    spread(GarageType, v, fill = 0)"
+"0",""

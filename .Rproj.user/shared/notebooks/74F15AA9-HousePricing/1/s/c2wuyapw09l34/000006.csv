@@ -1,0 +1,1 @@
+"0","df[rowMeans(is.na(df[,grepl(""Garage"",names(df))]))==0,grepl(""Garage"",names(df))] %>% ggplot(aes(x=GarageArea,y=GarageCars)) +geom_point() + geom_smooth() "

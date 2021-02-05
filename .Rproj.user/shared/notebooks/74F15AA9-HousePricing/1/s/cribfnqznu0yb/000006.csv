@@ -1,0 +1,8 @@
+"0",""
+"0","QC_Cond_decoder <- function(col,No_feature){"
+"0","evaluation_quality <- data.table(""quality"" = c(No_feature,""Po"",""Fa"",""TA"",""Gd"",""Ex""), ""score""=c(0,1,2,3,4,5))"
+"0","mapvalues(as.vector(col),evaluation_quality$quality,evaluation_quality$score)}"
+"0",""
+"0","df<- df %>% mutate(PoolArea= ifelse(is.na(PoolArea),0,PoolArea)) %>% mutate(PoolQC=QC_Cond_decoder(ifelse(PoolArea==0,""No Pool"", PoolQC),""No Pool""))"
+"0",""
+"0","df %>% ggplot(aes(y=PoolArea,x=as.factor(PoolQC))) + geom_boxplot()"

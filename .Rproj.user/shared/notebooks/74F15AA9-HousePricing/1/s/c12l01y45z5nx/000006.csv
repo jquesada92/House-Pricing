@@ -1,0 +1,3 @@
+"0","#Replace with Average"
+"0","z_score_lotfrtage <- (df$LotFrontage - mean(df$LotFrontage,na.rm=TRUE))/sd(df$LotFrontage,na.rm=TRUE)"
+"0","histogram(z_score_lotfrtage,main=""LotFrontage Zscore"")"

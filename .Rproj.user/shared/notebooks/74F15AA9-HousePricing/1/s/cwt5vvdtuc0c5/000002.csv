@@ -1,0 +1,6 @@
+"0","replace_exterior2 <- c(""Wd Shng""=""WdShing"", ""CmentBd""=""CemntBd"" ,""Brk Cmn""=""BrkComm"")"
+"0","#replaceing NA with mode"
+"0","df <- df%>% mutate(Exterior1st=ifelse(is.na(Exterior1st),mode(Exterior1st),Exterior1st),Exterior2nd=ifelse(is.na(Exterior2nd),mode(Exterior2nd),Exterior2nd)) %>%"
+"0","  mutate(Exterior2nd=revalue(Exterior2nd,replace_exterior2))"
+"0","#unique values between Exterior1st and Exterior2nd"
+"0","exteriors<- unique(c(unique(df$Exterior1st),unique(df$Exterior2nd)))"

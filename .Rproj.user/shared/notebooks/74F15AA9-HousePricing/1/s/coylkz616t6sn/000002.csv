@@ -1,0 +1,7 @@
+"0","df$Remod <- ifelse(df$YearBuilt==df$YearRemodAdd, 0, 1) #0=No Remodeling, 1=Remodeling"
+"0","df$Age <- as.numeric(df$YrSold)-df$YearRemodAdd"
+"0","df$New <- ifelse(df$YrSold==df$YearBuilt, 1, 0)  #0=No, 1= Yes"
+"0",""
+"0",""
+"0","cols_to_Drop <- c(cols_to_Drop,""Yrsold"",""MoSold"",""YearBuilt"",""Id"")"
+"0","df<- df[,!names(df)%in%cols_to_Drop]"

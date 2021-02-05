@@ -1,0 +1,5 @@
+"0","df <- df %>% arrange(-MiscVal) %>% fill(MiscFeature,.direction = ""downup"")"
+"0","missing_values(df[,grepl(""Misc"",names(df))]) %>% kable() %>%"
+"0","  kable_material(c(""striped""))%>% "
+"0","  kable_minimal()%>%"
+"0","  add_header_above(c(""Misc Missing Values""=3)) "

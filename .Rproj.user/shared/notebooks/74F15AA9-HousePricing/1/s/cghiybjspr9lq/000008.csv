@@ -1,0 +1,2 @@
+"0","p<- arrangeGrob(p_Mszone,p_Alley,p_Utilities,p_Functional,p_Fence,p_Air,p_PavedDrive,p_SaleType,p_Electrical,p_KitchenQual)"
+"0","grid.arrange(p)"

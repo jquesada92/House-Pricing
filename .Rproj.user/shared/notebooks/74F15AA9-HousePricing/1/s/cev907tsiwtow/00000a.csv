@@ -1,0 +1,1 @@
+"0","qqnorm(df$SalePrice,main = ""Before Log Transformation"")"

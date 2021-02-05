@@ -1,0 +1,7 @@
+"0","df<- df %>% mutate(Fireplaces=ifelse(is.na(Fireplaces),0,Fireplaces)) %>% "
+"0","  mutate(FireplaceQu=as.numeric(QC_Cond_decoder(ifelse(Fireplaces==0,""No_Fireplace"",FireplaceQu),""No_Fireplace"")))"
+"0",""
+"0","missing_values(df[,grepl(""Fire"",names(df))]) %>% kable() %>%"
+"0","  kable_material(c(""striped""))%>% "
+"0","  kable_minimal()%>%"
+"0","  add_header_above(c(""Fireplace Missing Values""=3)) "

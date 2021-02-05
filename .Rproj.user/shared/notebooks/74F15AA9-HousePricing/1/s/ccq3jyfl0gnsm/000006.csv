@@ -1,0 +1,4 @@
+"0","avg_sf <- mean(df$TotalBsmtSF)"
+"0","sd_sf<- sd(df$TotalBsmtSF)"
+"0","z<- (df$TotalBsmtSF -avg_sf)/sd_sf"
+"0","histogram(z,main=""TotalBsmtSF(Zscore)"")"

@@ -1,0 +1,2 @@
+"0","cols_to_Drop <- c(cols_to_Drop,""X1stFlrSF"", ""X2ndFlrSF"")"
+"0","df$Second_Floor<- ifelse(df$X2ndFlrSF>0,1,0) #0=No Second Floor, 1= Second Floor"

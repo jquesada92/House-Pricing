@@ -1,0 +1,4 @@
+"0","missing_values(df[,grepl(""Ext"",names(df))]) %>% kable() %>%"
+"0","  kable_material(c(""striped""))%>% "
+"0","  kable_minimal()%>%"
+"0","  add_header_above(c(""Exterior Missing Values""=3)) "

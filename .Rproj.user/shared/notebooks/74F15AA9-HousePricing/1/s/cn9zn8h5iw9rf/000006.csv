@@ -1,0 +1,8 @@
+"0","temp<- melt(cor(df[rowMeans(is.na(df[,grepl(""Garage"",names(df))&names(df)%in%numerical_columns]))==0,grepl(""Garage"",names(df))&names(df)%in%numerical_columns]))%>%"
+"0","  filter(Var1!=Var2)%>%"
+"0","   arrange(-value)"
+"0","temp[seq(1,nrow(temp),2),]%>%"
+"0","  kable() %>%"
+"0","  kable_material(c(""striped""))%>% "
+"0","  kable_minimal()%>%"
+"0","  add_header_above(c(""Garage (Numerical Columns Corr)""=4))"
